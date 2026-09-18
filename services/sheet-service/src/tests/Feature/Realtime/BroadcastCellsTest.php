@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Finance\Domains\Auth\Models\UserModel;
 use Finance\Domains\Realtime\Events\CellsChangedEvent;
 use Illuminate\Support\Facades\Event;
 
@@ -45,15 +44,12 @@ test('оформление тоже рассылается', function (): void {
 test('участник книги допускается в канал листа', function (): void {
     $context = sheetContext();
 
-    /** @var UserModel $owner */
-    $owner = UserModel::query()->where('_id', $context['userId'])->first();
-
-    $allowed = test()->postJson('/api/broadcasting/auth', [
+    // Проверяется именно успех: «не 401» пропускало запрет доступа с кодом 403,
+    // и подписка на канал молча не работала.
+    test()->postJson('/api/broadcasting/auth', [
         'channel_name' => "private-sheet.{$context['sheet']}",
         'socket_id' => '1234.5678',
-    ], ['Authorization' => "Bearer {$context['token']}"]);
-
-    expect($allowed->status())->not->toBe(401);
+    ], ['Authorization' => "Bearer {$context['token']}"])->assertOk();
 });
 
 test('посторонний в канал чужого листа не допускается', function (): void {
