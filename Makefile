@@ -16,8 +16,9 @@ help: ## Список команд
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: init
-init: ## Первичная настройка: файл окружения и зависимости
+init: ## Первичная настройка: файл окружения, ключи подписи и зависимости
 	@test -f .env || cp .env.example .env
+	@$(MAKE) keys
 	$(COMPOSE) build
 	$(MAKE) install
 
@@ -79,3 +80,17 @@ analyse: ## Статический анализ и стиль
 	$(COMPOSE) run --rm --no-deps --workdir /app/packages/formula-engine sheet-app vendor/bin/phpstan analyse
 	$(COMPOSE) exec sheet-app vendor/bin/phpstan analyse
 	$(COMPOSE) exec history-app vendor/bin/phpstan analyse
+
+.PHONY: keys
+keys: ## Создать пару ключей подписи токенов
+	@mkdir -p docker/secrets
+	@test -f docker/secrets/jwt-private.pem || ( \
+		openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out docker/secrets/jwt-private.pem 2>/dev/null && \
+		openssl rsa -in docker/secrets/jwt-private.pem -pubout -out docker/secrets/jwt-public.pem 2>/dev/null && \
+		chmod 600 docker/secrets/jwt-private.pem && \
+		echo "ключи подписи созданы" )
+
+.PHONY: indexes
+indexes: ## Создать индексы коллекций MongoDB
+	$(COMPOSE) exec sheet-app php artisan finance:create-indexes
+	$(COMPOSE) exec history-app php artisan finance:create-indexes
