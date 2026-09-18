@@ -60,6 +60,24 @@ final class CellChangeRepository extends AbstractMongoRepository implements Prov
         return $changes;
     }
 
+    /**
+     * Все правки листа до указанной версии включительно, в порядке применения.
+     *
+     * @return Collection<int, CellChangeModel>
+     */
+    public function upToVersion(string $sheetIdentifier, int $version): Collection
+    {
+        /** @var Collection<int, CellChangeModel> $changes */
+        $changes = $this->query()
+            ->where('sheet_id', $sheetIdentifier)
+            ->where('sheet_version', '<=', $version)
+            ->orderBy('sheet_version')
+            ->orderBy('occurred_at')
+            ->get();
+
+        return $changes;
+    }
+
     public function collectionName(): string
     {
         return 'cell_changes';

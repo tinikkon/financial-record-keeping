@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
+use Finance\Domains\Messaging\Actions\HandleSheetEventAction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -43,14 +44,19 @@ function accessTokenFor(string $userIdentifier = 'пользователь-1'): 
  *
  * @return array<string, mixed>
  */
-function sheetEvent(array $cells, int $sheetVersion = 1, ?string $messageIdentifier = null): array
-{
+function sheetEvent(
+    array $cells,
+    int $sheetVersion = 1,
+    ?string $messageIdentifier = null,
+    string $sheetIdentifier = 'лист-1',
+    string $sheetName = '10.26',
+): array {
     return [
         'messageId' => $messageIdentifier ?? (string) Str::uuid(),
         'occurredAt' => CarbonImmutable::now()->toIso8601String(),
         'workbookId' => 'книга-1',
-        'sheetId' => 'лист-1',
-        'sheetName' => '10.26',
+        'sheetId' => $sheetIdentifier,
+        'sheetName' => $sheetName,
         'sheetVersion' => $sheetVersion,
         'actorId' => 'пользователь-1',
         'cells' => $cells,
@@ -72,4 +78,14 @@ function cellPayload(string $address, int $row, int $column, ?string $value, ?st
         'error' => null,
         'format' => [],
     ];
+}
+
+/**
+ * Обрабатывает сообщение так же, как это делает потребитель очереди.
+ *
+ * @param array<string, mixed> $message
+ */
+function handleEvent(array $message): int
+{
+    return app(HandleSheetEventAction::class)->execute($message);
 }

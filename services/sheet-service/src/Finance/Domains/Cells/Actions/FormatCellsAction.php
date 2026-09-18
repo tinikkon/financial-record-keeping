@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finance\Domains\Cells\Actions;
 
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Exceptions\CellNotSavedException;
 use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Cells\Models\CellModel;
 use Finance\Domains\Sheets\Contracts\SheetRepositoryContract;

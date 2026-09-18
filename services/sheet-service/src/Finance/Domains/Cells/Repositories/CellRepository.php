@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finance\Domains\Cells\Repositories;
 
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Exceptions\CellNotSavedException;
 use Finance\Domains\Cells\Models\CellModel;
 use Finance\Domains\Core\Contracts\IndexDefinition;
 use Finance\Domains\Core\Contracts\ProvidesIndexes;
@@ -12,6 +13,7 @@ use Finance\Domains\Core\Repositories\AbstractMongoRepository;
 use Finance\FormulaEngine\Values\CellRange;
 use Finance\FormulaEngine\Values\CellReference;
 use Illuminate\Support\Collection;
+use MongoDB\BSON\Decimal128;
 
 final class CellRepository extends AbstractMongoRepository implements CellRepositoryContract, ProvidesIndexes
 {
@@ -74,19 +76,46 @@ final class CellRepository extends AbstractMongoRepository implements CellReposi
         return $cells;
     }
 
+    /**
+     * Записывает ячейку, создавая её при первом заполнении.
+     *
+     * Операция выполняется одним запросом с upsert, а не чтением и сохранением
+     * модели. Eloquent при обновлении отправляет только поля, которые считает
+     * изменившимися, и поле с собственным приведением типа в этот список
+     * не попадает: в памяти новое значение есть, в базе остаётся прежнее.
+     * Поймать такое тестом можно только перечитав запись заново.
+     *
+     * @throws CellNotSavedException
+     */
     public function save(string $sheetIdentifier, CellReference $reference, array $attributes): CellModel
     {
-        $cell = $this->findAt($sheetIdentifier, $reference) ?? new CellModel();
+        if (array_key_exists('value_number', $attributes)) {
+            $number = $attributes['value_number'];
+            $attributes['value_number'] = $number === null ? null : new Decimal128((string) $number);
+        }
 
-        $cell->fill([
-            ...$attributes,
+        $position = [
             'sheet_id' => $sheetIdentifier,
             'row' => $reference->row,
             'column' => $reference->column,
-        ]);
-        $cell->save();
+        ];
 
-        return $cell;
+        $this->collection()->updateOne(
+            $position,
+            [
+                '$set' => [...$attributes, ...$position],
+                '$currentDate' => ['updated_at' => true],
+            ],
+            ['upsert' => true, ...$this->sessionOptions()],
+        );
+
+        $saved = $this->findAt($sheetIdentifier, $reference);
+
+        if ($saved === null) {
+            throw new CellNotSavedException($reference->key());
+        }
+
+        return $saved;
     }
 
     public function deleteForSheet(string $sheetIdentifier): void
