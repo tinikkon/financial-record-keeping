@@ -3,6 +3,8 @@ import { describeChange, formatMoment } from '../../entities/history';
 import { useHistoryStore } from '../../stores/history';
 
 const history = useHistoryStore();
+
+const emit = defineEmits<{ вернуть: [версия: number] }>();
 </script>
 
 <template>
@@ -27,6 +29,9 @@ const history = useHistoryStore();
                 <span v-if="change.inputAfter?.startsWith('=')" class="история__формула">
                     {{ change.inputAfter }}
                 </span>
+                <button type="button" class="история__вернуть" @click="emit('вернуть', change.sheetVersion)">
+                    Вернуть лист к версии {{ change.sheetVersion }}
+                </button>
             </li>
         </ol>
     </aside>

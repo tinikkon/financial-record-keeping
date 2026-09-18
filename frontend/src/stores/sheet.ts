@@ -191,6 +191,32 @@ export const useSheetStore = defineStore('sheet', () => {
         mergeCells(packet.cells, packet.sheetVersion);
     }
 
+    /**
+     * Возвращает лист к состоянию на указанную версию.
+     *
+     * Прошлое при этом не переписывается: возврат сам становится новой версией,
+     * и отменить его можно тем же способом.
+     */
+    async function restoreToVersion(version: number): Promise<void> {
+        if (activeSheet.value === null) {
+            return;
+        }
+
+        errorMessage.value = null;
+
+        try {
+            const applied = await sheetApi.request<AppliedEditsResponse>(
+                `sheets/${activeSheet.value.id}/restore`,
+                { method: 'POST', body: { version } },
+            );
+
+            mergeCells(applied.cells, applied.sheetVersion);
+            await reloadActiveSheet();
+        } catch (error) {
+            errorMessage.value = error instanceof Error ? error.message : 'Не удалось вернуть лист';
+        }
+    }
+
     async function reloadActiveSheet(): Promise<void> {
         if (activeSheet.value === null) {
             return;
@@ -246,6 +272,7 @@ export const useSheetStore = defineStore('sheet', () => {
         applyEdits,
         applyFormat,
         applyIncomingPacket,
+        restoreToVersion,
         reloadActiveSheet,
         reset,
     };
