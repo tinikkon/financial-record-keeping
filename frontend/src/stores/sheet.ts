@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { sheetApi } from '../shared/api/client';
 import { dropRealtimeConnection, subscribeToSheet, whenConnectionStateChanges } from '../shared/api/realtime';
-import type { Cell, CellEdit, Sheet, Workbook } from '../entities/sheet';
+import type { Cell, CellEdit, CellFormat, Sheet, Workbook } from '../entities/sheet';
 
 interface SheetContentResponse {
     sheet: Sheet;
@@ -132,6 +132,41 @@ export const useSheetStore = defineStore('sheet', () => {
     }
 
     /**
+     * Меняет оформление одной ячейки.
+     *
+     * Свойство со значением undefined сервер понимает как снятие: так можно
+     * убрать заливку, не сбрасывая заодно жирность.
+     */
+    async function applyFormat(row: number, column: number, format: CellFormat): Promise<void> {
+        if (activeSheet.value === null) {
+            return;
+        }
+
+        const свойства: Record<string, unknown> = {};
+
+        for (const [имя, значение] of Object.entries(format)) {
+            свойства[имя] = значение === undefined ? null : значение;
+        }
+
+        try {
+            const applied = await sheetApi.request<AppliedEditsResponse>(
+                `sheets/${activeSheet.value.id}/cells/format`,
+                {
+                    method: 'PATCH',
+                    body: {
+                        range: { startRow: row, startColumn: column, endRow: row, endColumn: column },
+                        format: свойства,
+                    },
+                },
+            );
+
+            mergeCells(applied.cells, applied.sheetVersion);
+        } catch (error) {
+            errorMessage.value = error instanceof Error ? error.message : 'Оформление не применилось';
+        }
+    }
+
+    /**
      * Применяет пришедший по сокету пакет.
      *
      * Версия должна идти ровно следом за текущей. Разрыв означает, что между
@@ -209,6 +244,7 @@ export const useSheetStore = defineStore('sheet', () => {
         createSheet,
         duplicateSheet,
         applyEdits,
+        applyFormat,
         applyIncomingPacket,
         reloadActiveSheet,
         reset,

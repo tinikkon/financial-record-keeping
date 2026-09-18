@@ -1,5 +1,7 @@
 # Таблица семейных финансов
 
+[![Проверки](https://github.com/tinikkon/financial-record-keeping/actions/workflows/ci.yml/badge.svg)](https://github.com/tinikkon/financial-record-keeping/actions/workflows/ci.yml)
+
 Веб-аналог Excel для семейного бюджета: листы-месяцы, произвольные колонки,
 формулы и мгновенная синхронизация между устройствами.
 
