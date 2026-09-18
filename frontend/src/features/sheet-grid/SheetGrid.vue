@@ -109,6 +109,16 @@ function сдвинуть(строкой: number, колонкой: number): voi
 
 function приНажатии(event: KeyboardEvent): void {
     if (редактируется.value) {
+        // Поле ввода появляется в разметке не мгновенно, и набранное за это время
+        // иначе пропадало бы: при быстром наборе «расход» превращалось в «ход».
+        const полеЕщёНеПолучилоФокус = document.activeElement !== редактор.поле;
+        const обычныйСимвол = event.key.length === 1 && !event.ctrlKey && !event.metaKey;
+
+        if (полеЕщёНеПолучилоФокус && обычныйСимвол) {
+            event.preventDefault();
+            редактируемоеЗначение.value = (редактируемоеЗначение.value ?? '') + event.key;
+        }
+
         return;
     }
 

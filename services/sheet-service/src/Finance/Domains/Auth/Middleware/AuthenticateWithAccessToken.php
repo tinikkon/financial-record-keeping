@@ -7,6 +7,7 @@ namespace Finance\Domains\Auth\Middleware;
 use Closure;
 use Finance\Domains\Auth\Contracts\UserRepositoryContract;
 use Finance\Domains\Auth\Exceptions\InvalidAccessTokenException;
+use Finance\Domains\Auth\Models\UserModel;
 use Finance\Domains\Auth\Services\AccessTokenIssuer;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -44,6 +45,10 @@ final readonly class AuthenticateWithAccessToken
         }
 
         $request->attributes->set(self::USER_ATTRIBUTE, $user);
+
+        // Проверка доступа к каналам вещания берёт пользователя через штатный
+        // механизм Laravel, а не из атрибутов, поэтому он задаётся и там.
+        $request->setUserResolver(static fn (): UserModel => $user);
 
         return $next($request);
     }

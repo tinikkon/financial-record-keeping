@@ -6,7 +6,7 @@ import { вписать, войти, новыйМесяц } from './вспомо
  * выглядела исходная таблица в Excel, и сохраняет картинку.
  */
 test('снимок заполненного месяца', async ({ page }) => {
-    test.skip(process.env.СНИМКИ !== '1', 'Снимки делаются отдельным прогоном');
+    test.skip(process.env.SCREENSHOTS !== '1', 'Снимки делаются отдельным прогоном');
 
     await page.setViewportSize({ width: 1280, height: 720 });
     await войти(page);

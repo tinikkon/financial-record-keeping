@@ -3,6 +3,7 @@ import Pusher from 'pusher-js';
 import { tokenStorage } from './tokens';
 
 let echo: Echo<'reverb'> | null = null;
+let текущийКанал: string | null = null;
 
 /**
  * Подключение к серверу живых обновлений.
@@ -58,15 +59,29 @@ export function whenConnectionStateChanges(handler: (connected: boolean) => void
  * между месяцами иначе копились бы подписки на все открытые ранее листы.
  */
 export function subscribeToSheet<TPacket>(sheetIdentifier: string, handler: (packet: TPacket) => void): void {
+    const канал = `sheet.${sheetIdentifier}`;
+
+    // Повторное открытие того же листа ничего не меняет. Снимать подписку
+    // и тут же подписываться заново нельзя: отписка приходит на сервер после
+    // подписки и гасит её, а обновления молча перестают приходить.
+    if (текущийКанал === канал) {
+        return;
+    }
+
     const connection = realtimeConnection();
 
-    connection.leave(`sheet.${sheetIdentifier}`);
-    connection.private(`sheet.${sheetIdentifier}`).listen('.cells.changed', handler);
+    if (текущийКанал !== null) {
+        connection.leave(текущийКанал);
+    }
+
+    текущийКанал = канал;
+    connection.private(канал).listen('.cells.changed', handler);
 }
 
 export function dropRealtimeConnection(): void {
     echo?.disconnect();
     echo = null;
+    текущийКанал = null;
 }
 
 declare global {
