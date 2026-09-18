@@ -14,6 +14,7 @@ use Finance\Domains\Cells\Models\CellModel;
 use Finance\Domains\Cells\Requests\FormatCellsRequest;
 use Finance\Domains\Cells\Requests\UpdateCellsRequest;
 use Finance\Domains\Cells\Resources\CellResource;
+use Finance\Domains\Messaging\Actions\PublishCellsChangedAction;
 use Finance\Domains\Realtime\Actions\BroadcastCellsChangedAction;
 use Finance\Domains\Sheets\Actions\FindAvailableSheetAction;
 use Finance\Domains\Sheets\Exceptions\SheetNotAvailableException;
@@ -60,6 +61,7 @@ final readonly class CellController
         FindAvailableSheetAction $findSheet,
         ApplyCellEditsAction $applyEdits,
         BroadcastCellsChangedAction $broadcastChanges,
+        PublishCellsChangedAction $publishChanges,
     ): JsonResponse {
         $userIdentifier = CurrentUser::identifier($request);
         $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
@@ -67,6 +69,7 @@ final readonly class CellController
         $applied = $applyEdits->execute($sheet, $request->edits(), $userIdentifier);
 
         $broadcastChanges->execute($sheetIdentifier, $applied->sheetVersion, $applied->cells, $userIdentifier);
+        $publishChanges->execute($sheet, $applied->sheetVersion, $applied->cells, $userIdentifier);
 
         return new JsonResponse([
             'sheetVersion' => $applied->sheetVersion,
