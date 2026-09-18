@@ -47,6 +47,10 @@ export function whenConnectionStateChanges(handler: (connected: boolean) => void
     connection.bind('connected', () => handler(true));
     connection.bind('disconnected', () => handler(false));
     connection.bind('unavailable', () => handler(false));
+
+    // Соединение могло установиться до подписки на события: тогда «connected»
+    // уже прозвучало, и без этой строки полоса состояния так и осталась бы красной.
+    handler(connection.state === 'connected');
 }
 
 /**

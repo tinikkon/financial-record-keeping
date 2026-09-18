@@ -5,7 +5,7 @@ import SheetGrid from '../features/sheet-grid/SheetGrid.vue';
 import FormulaBar from '../features/sheet-grid/FormulaBar.vue';
 import SheetTabs from '../features/sheet-tabs/SheetTabs.vue';
 import { useAuthStore } from '../stores/auth';
-import { currentMonthName, useSheetStore } from '../stores/sheet';
+import { useSheetStore } from '../stores/sheet';
 import { cellAddress } from '../entities/sheet';
 
 const authentication = useAuthStore();
@@ -26,20 +26,12 @@ async function сохранитьЯчейку(edit: { row: number; column: numbe
     await sheet.applyEdits([edit]);
 }
 
-async function добавитьМесяц(): Promise<void> {
-    const название = window.prompt('Название нового месяца', currentMonthName());
-
-    if (название !== null && название.trim() !== '') {
-        await sheet.createSheet(название.trim());
-    }
+async function добавитьМесяц(название: string): Promise<void> {
+    await sheet.createSheet(название);
 }
 
-async function скопироватьМесяц(): Promise<void> {
-    const название = window.prompt('Название месяца-копии', currentMonthName());
-
-    if (название !== null && название.trim() !== '') {
-        await sheet.duplicateSheet(название.trim());
-    }
+async function скопироватьМесяц(название: string): Promise<void> {
+    await sheet.duplicateSheet(название);
 }
 
 async function выйти(): Promise<void> {

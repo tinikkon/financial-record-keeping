@@ -20,7 +20,9 @@ const emit = defineEmits<{
 }>();
 
 const область = ref<HTMLElement | null>(null);
-const полеВвода = ref<HTMLInputElement | null>(null);
+// Ссылка внутри v-for превращается в массив, поэтому поле запоминается вручную:
+// одновременно редактируется ровно одна ячейка, и хранить нужно один элемент.
+const редактор = { поле: null as HTMLInputElement | null };
 const смещениеПрокрутки = ref(0);
 const высотаОбласти = ref(600);
 const редактируемоеЗначение = ref<string | null>(null);
@@ -70,7 +72,7 @@ function начатьРедактирование(начальноеЗначен
     const текущая = ячейка(properties.selected.row, properties.selected.column);
     редактируемоеЗначение.value = начальноеЗначение ?? текущая?.input ?? '';
 
-    void nextTick(() => полеВвода.value?.focus());
+    void nextTick(() => редактор.поле?.focus());
 }
 
 function завершитьРедактирование(): void {
@@ -221,7 +223,7 @@ defineExpose({ начатьРедактирование });
                         >
                             <input
                                 v-if="выбрана(row, column) && редактируется"
-                                ref="полеВвода"
+                                :ref="(элемент) => (редактор.поле = элемент as HTMLInputElement | null)"
                                 v-model="редактируемоеЗначение"
                                 class="сетка__ввод"
                                 :inputmode="редактируемоеЗначение?.startsWith('=') ? 'text' : 'decimal'"
