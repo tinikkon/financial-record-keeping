@@ -5,9 +5,10 @@ import SheetGrid from '../features/sheet-grid/SheetGrid.vue';
 import FormulaBar from '../features/sheet-grid/FormulaBar.vue';
 import SheetTabs from '../features/sheet-tabs/SheetTabs.vue';
 import CellHistoryPanel from '../features/history-panel/CellHistoryPanel.vue';
+import CellFormatBar from '../features/cell-format/CellFormatBar.vue';
 import { useAuthStore } from '../stores/auth';
 import { useSheetStore } from '../stores/sheet';
-import { cellAddress } from '../entities/sheet';
+import { cellAddress, type CellFormat } from '../entities/sheet';
 import { useHistoryStore } from '../stores/history';
 
 const authentication = useAuthStore();
@@ -35,6 +36,10 @@ async function добавитьМесяц(название: string): Promise<voi
 
 async function скопироватьМесяц(название: string): Promise<void> {
     await sheet.duplicateSheet(название);
+}
+
+async function оформить(изменения: CellFormat): Promise<void> {
+    await sheet.applyFormat(выбранная.value.row, выбранная.value.column, изменения);
 }
 
 async function показатьИсторию(): Promise<void> {
@@ -71,6 +76,8 @@ async function выйти(): Promise<void> {
             <span v-if="authentication.user !== null">{{ authentication.user.name }}</span>
             <button type="button" class="полоса-состояния__выход" @click="выйти">Выйти</button>
         </div>
+
+        <CellFormatBar :format="выбраннаяЯчейка?.format ?? {}" @изменить="оформить" />
 
         <FormulaBar
             :row="выбранная.row"

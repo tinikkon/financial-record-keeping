@@ -374,3 +374,62 @@ button {
     font-size: 12px;
     color: var(--цвет-приглушённый);
 }
+
+.оформление {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--цвет-границы);
+    background: var(--цвет-заголовка);
+}
+
+.оформление__кнопка {
+    width: 30px;
+    height: 28px;
+    border: 1px solid var(--цвет-границы);
+    border-radius: 6px;
+    background: var(--цвет-фона);
+    font-weight: 700;
+}
+
+.оформление__кнопка--включена {
+    border-color: var(--цвет-выделения);
+    color: var(--цвет-выделения);
+}
+
+.оформление__заливка {
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--цвет-границы-яркой);
+    border-radius: 6px;
+    color: var(--цвет-приглушённый);
+    font-size: 12px;
+    line-height: 1;
+}
+
+.оформление__заливка--выбрана {
+    outline: 2px solid var(--цвет-выделения);
+    outline-offset: 1px;
+}
+
+.оформление__разделитель {
+    width: 1px;
+    height: 20px;
+    background: var(--цвет-границы);
+}
+
+.оформление__знаки {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--цвет-приглушённый);
+    font-size: 13px;
+}
+
+.оформление__знаки select {
+    padding: 4px 6px;
+    border: 1px solid var(--цвет-границы);
+    border-radius: 6px;
+    font: inherit;
+}
