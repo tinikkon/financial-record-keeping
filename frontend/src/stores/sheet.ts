@@ -20,6 +20,25 @@ interface IncomingPacket {
     actorId: string;
 }
 
+const ХРАНИЛИЩЕ_ОТКРЫТОГО_ЛИСТА = 'finance.activeSheetId';
+
+function rememberedSheetIdentifier(): string | null {
+    try {
+        return localStorage.getItem(ХРАНИЛИЩЕ_ОТКРЫТОГО_ЛИСТА);
+    } catch {
+        return null;
+    }
+}
+
+function rememberSheet(sheetIdentifier: string): void {
+    try {
+        localStorage.setItem(ХРАНИЛИЩЕ_ОТКРЫТОГО_ЛИСТА, sheetIdentifier);
+    } catch {
+        // Приватный режим браузера может запрещать запись — приложение просто
+        // откроет первый месяц.
+    }
+}
+
 export const useSheetStore = defineStore('sheet', () => {
     const workbook = ref<Workbook | null>(null);
     const sheets = ref<Sheet[]>([]);
@@ -59,8 +78,11 @@ export const useSheetStore = defineStore('sheet', () => {
         const response = await sheetApi.request<{ sheets: Sheet[] }>(`workbooks/${workbook.value.id}/sheets`);
         sheets.value = response.sheets;
 
+        // После перезагрузки открывается тот же месяц, что был открыт: возвращать
+        // человека каждый раз в первый месяц — значит заставлять его искать своё место.
+        const запомненный = response.sheets.find((sheet) => sheet.id === rememberedSheetIdentifier());
         const current = response.sheets.find((sheet) => sheet.id === activeSheet.value?.id);
-        const target = current ?? response.sheets[0];
+        const target = current ?? запомненный ?? response.sheets[0];
 
         if (target === undefined) {
             await createSheet(currentMonthName());
@@ -76,6 +98,7 @@ export const useSheetStore = defineStore('sheet', () => {
 
         activeSheet.value = content.sheet;
         cells.value = new Map(content.cells.map((cell) => [cell.address, cell]));
+        rememberSheet(sheetIdentifier);
 
         listenToSheet(sheetIdentifier);
     }
