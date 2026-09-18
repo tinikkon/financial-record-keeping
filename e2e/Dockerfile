@@ -1,8 +1,14 @@
-# Лёгкий образ для сквозных тестов: официальный образ Playwright весит около двух
-# гигабайт, а нужны из него только системные библиотеки для Chromium.
+# Образ для сквозных тестов.
+#
+# Официальный образ Playwright весит около двух гигабайт, а его зеркало браузеров
+# бывает недоступно. Chromium берётся из репозитория Debian: тот же источник,
+# что и для системных библиотек, и заметно быстрее.
 FROM node:24
 
-RUN npx -y playwright@1.63.0 install-deps chromium \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends chromium \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium
 
 WORKDIR /e2e
