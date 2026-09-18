@@ -65,7 +65,15 @@ final readonly class RecordSheetChangesAction
                 'occurred_at' => $occurredAt,
             ]);
 
-            $this->states->remember($sheetIdentifier, $address, $valueAfter, $inputAfter);
+            $this->states->remember($sheetIdentifier, $address, [
+                'workbook_id' => (string) $message['workbookId'],
+                'sheet_name' => (string) $message['sheetName'],
+                'row' => (int) $cell['row'],
+                'column' => (int) $cell['column'],
+                'value' => $valueAfter,
+                'value_number' => $cell['kind'] === 'text' ? null : $valueAfter,
+                'input' => $inputAfter,
+            ]);
             $recorded++;
         }
 

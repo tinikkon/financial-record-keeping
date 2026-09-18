@@ -11,6 +11,7 @@ use Finance\Domains\Calculation\Services\SheetDependencyGraph;
 use Finance\Domains\Cells\Actions\AppliedCellEdits;
 use Finance\Domains\Cells\Actions\CellEdit;
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Exceptions\CellNotSavedException;
 use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
 use Finance\Domains\Cells\Models\CellModel;

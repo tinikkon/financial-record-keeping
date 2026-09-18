@@ -3,12 +3,6 @@
 declare(strict_types=1);
 
 use Finance\Domains\Changelog\Models\CellChangeModel;
-use Finance\Domains\Messaging\Actions\HandleSheetEventAction;
-
-function handleEvent(array $message): int
-{
-    return app(HandleSheetEventAction::class)->execute($message);
-}
 
 test('первое изменение ячейки записывается с пустым прежним значением', function (): void {
     $recorded = handleEvent(sheetEvent([cellPayload('B3', 3, 2, '120')]));

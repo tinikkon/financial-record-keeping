@@ -106,6 +106,7 @@ final class SheetRepository extends AbstractMongoRepository implements ProvidesI
                 'returnDocument' => FindOneAndUpdate::RETURN_DOCUMENT_AFTER,
                 'projection' => ['version' => 1],
                 'typeMap' => ['root' => 'array'],
+                ...$this->sessionOptions(),
             ],
         );
 

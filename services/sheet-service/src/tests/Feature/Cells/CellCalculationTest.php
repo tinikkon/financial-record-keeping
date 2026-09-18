@@ -118,3 +118,18 @@ test('лист отдаётся целиком со всеми заполнен�
     expect($response['cells'])->toHaveCount(3)
         ->and($response['sheet']['version'])->toBe(1);
 });
+
+test('пересчитанный итог сохраняется в базе, а не только возвращается в ответе', function (): void {
+    $context = sheetContext();
+    writeCells($context, ['B3' => '120', 'B91' => '=СУММ(B3:B90)']);
+    writeCells($context, ['B4' => '80']);
+
+    // Перечитываем лист заново: ответ на правку показывает значение из памяти,
+    // и расхождение с тем, что действительно легло в базу, иначе не заметить.
+    $лист = test()->withToken($context['token'])
+        ->getJson("/api/sheets/{$context['sheet']}/cells")
+        ->assertOk()
+        ->json();
+
+    expect(valueAt($лист, 'B91'))->toBe('200');
+});

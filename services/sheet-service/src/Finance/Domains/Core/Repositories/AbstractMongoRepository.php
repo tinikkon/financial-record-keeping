@@ -6,6 +6,7 @@ namespace Finance\Domains\Core\Repositories;
 
 use Finance\Domains\Core\Models\MongoModel;
 use Illuminate\Support\Facades\DB;
+use MongoDB\Driver\Session;
 use MongoDB\Laravel\Connection;
 use MongoDB\Collection;
 use MongoDB\Laravel\Eloquent\Builder;
@@ -45,5 +46,22 @@ abstract class AbstractMongoRepository
         $connection = DB::connection('mongodb');
 
         return $connection->getCollection($model->getTable());
+    }
+
+    /**
+     * Настройки, привязывающие сырую операцию к текущей транзакции.
+     *
+     * Запросы через коллекцию идут мимо сессии, которую открыл Laravel: запись
+     * окажется вне транзакции, а чтение внутри неё этой записи не увидит.
+     *
+     * @return array{session?: Session}
+     */
+    protected function sessionOptions(): array
+    {
+        /** @var Connection $connection */
+        $connection = DB::connection('mongodb');
+        $session = $connection->getSession();
+
+        return $session === null ? [] : ['session' => $session];
     }
 }
