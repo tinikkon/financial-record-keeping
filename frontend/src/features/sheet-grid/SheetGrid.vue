@@ -19,6 +19,7 @@ const emit = defineEmits<{
     commit: [edit: { row: number; column: number; input: string | null }];
 }>();
 
+const корень = ref<HTMLElement | null>(null);
 const область = ref<HTMLElement | null>(null);
 // Ссылка внутри v-for превращается в массив, поэтому поле запоминается вручную:
 // одновременно редактируется ровно одна ячейка, и хранить нужно один элемент.
@@ -65,6 +66,11 @@ function приПрокрутке(event: Event): void {
 
 function выбрать(row: number, column: number): void {
     завершитьРедактирование();
+
+    // Щелчок по ячейке возвращает фокус сетке: иначе после работы с вкладками
+    // или панелями нажатия клавиш уходят в никуда и ввод не начинается.
+    корень.value?.focus();
+
     emit('select', { row, column });
 }
 
@@ -191,7 +197,7 @@ defineExpose({ начатьРедактирование });
 </script>
 
 <template>
-    <div class="сетка" tabindex="0" @keydown="приНажатии">
+    <div ref="корень" class="сетка" tabindex="0" @keydown="приНажатии">
         <div class="сетка__шапка">
             <div class="сетка__угол"></div>
             <div
