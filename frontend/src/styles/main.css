@@ -1,0 +1,295 @@
+:root {
+    --цвет-фона: #ffffff;
+    --цвет-текста: #1f2328;
+    --цвет-границы: #d8dce1;
+    --цвет-границы-яркой: #b6bcc4;
+    --цвет-заголовка: #f3f5f7;
+    --цвет-выделения: #1a7f4b;
+    --цвет-ошибки: #b3261e;
+    --цвет-приглушённый: #6b7280;
+    --высота-строки: 30px;
+    --ширина-номера-строки: 52px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+}
+
+body {
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    color: var(--цвет-текста);
+    background: var(--цвет-фона);
+}
+
+#app {
+    height: 100%;
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+}
+
+.приложение {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.полоса-состояния {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--цвет-границы);
+    background: var(--цвет-заголовка);
+    font-size: 13px;
+    color: var(--цвет-приглушённый);
+}
+
+.полоса-состояния__связь {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.полоса-состояния__огонёк {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--цвет-выделения);
+}
+
+.полоса-состояния__огонёк--нет-связи {
+    background: var(--цвет-ошибки);
+}
+
+.вход {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.вход__форма {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(360px, calc(100% - 32px));
+    padding: 24px;
+    border: 1px solid var(--цвет-границы);
+    border-radius: 12px;
+}
+
+.вход__форма h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+}
+
+.поле {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.поле input {
+    padding: 10px;
+    border: 1px solid var(--цвет-границы);
+    border-radius: 8px;
+    font: inherit;
+}
+
+.кнопка {
+    padding: 10px 14px;
+    border: 1px solid var(--цвет-выделения);
+    border-radius: 8px;
+    background: var(--цвет-выделения);
+    color: #fff;
+}
+
+.кнопка:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.сообщение-об-ошибке {
+    color: var(--цвет-ошибки);
+    font-size: 13px;
+}
+
+.полоса-состояния__разделитель {
+    flex: 1;
+}
+
+.полоса-состояния__выход {
+    border: none;
+    background: none;
+    color: var(--цвет-приглушённый);
+    text-decoration: underline;
+}
+
+.строка-формул {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--цвет-границы);
+}
+
+.строка-формул__адрес {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--ширина-номера-строки);
+    border-right: 1px solid var(--цвет-границы);
+    background: var(--цвет-заголовка);
+    font-variant-numeric: tabular-nums;
+}
+
+.строка-формул__значение {
+    flex: 1;
+    padding: 8px 10px;
+    border: none;
+    background: none;
+    text-align: left;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    min-height: 36px;
+}
+
+.сетка {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    outline: none;
+}
+
+.сетка__шапка {
+    display: flex;
+    border-bottom: 1px solid var(--цвет-границы-яркой);
+    background: var(--цвет-заголовка);
+}
+
+.сетка__угол {
+    flex: 0 0 var(--ширина-номера-строки);
+    border-right: 1px solid var(--цвет-границы-яркой);
+}
+
+.сетка__заголовок {
+    flex: 0 0 auto;
+    padding: 6px 0;
+    border-right: 1px solid var(--цвет-границы);
+    text-align: center;
+    font-weight: 600;
+    color: var(--цвет-приглушённый);
+}
+
+.сетка__область {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+}
+
+.сетка__полотно {
+    position: relative;
+}
+
+.сетка__окно {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+
+.сетка__строка {
+    display: flex;
+    height: var(--высота-строки);
+}
+
+.сетка__номер {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    flex: 0 0 var(--ширина-номера-строки);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--цвет-границы-яркой);
+    border-bottom: 1px solid var(--цвет-границы);
+    background: var(--цвет-заголовка);
+    color: var(--цвет-приглушённый);
+    font-variant-numeric: tabular-nums;
+}
+
+.сетка__ячейка {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 6px;
+    border-right: 1px solid var(--цвет-границы);
+    border-bottom: 1px solid var(--цвет-границы);
+    overflow: hidden;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.сетка__ячейка--выбрана {
+    outline: 2px solid var(--цвет-выделения);
+    outline-offset: -2px;
+}
+
+.сетка__ячейка--ошибка {
+    color: var(--цвет-ошибки);
+}
+
+.сетка__ввод {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    text-align: inherit;
+}
+
+.вкладки {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--цвет-границы);
+    background: var(--цвет-заголовка);
+    overflow-x: auto;
+}
+
+.вкладки__вкладка,
+.вкладки__действие {
+    flex: 0 0 auto;
+    padding: 6px 14px;
+    border: 1px solid var(--цвет-границы);
+    border-radius: 6px;
+    background: var(--цвет-фона);
+}
+
+.вкладки__вкладка--активная {
+    border-color: var(--цвет-выделения);
+    color: var(--цвет-выделения);
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    :root {
+        --высота-строки: 38px;
+        --ширина-номера-строки: 40px;
+    }
+
+    .сетка__ячейка {
+        padding: 0 8px;
+    }
+}
