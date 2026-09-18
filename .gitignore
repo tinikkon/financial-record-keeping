@@ -16,3 +16,6 @@
 .DS_Store
 *.log
 /docker/secrets/
+
+# Локальные заметки, в репозиторий не идут
+/CLAUDE.md
