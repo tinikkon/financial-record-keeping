@@ -135,7 +135,7 @@ make test-engine    # только движок формул
 make test-sheet     # только сервис таблиц
 make test-history   # только сервис истории
 make test-frontend  # только фронтенд
-make test-e2e       # сквозные тесты в браузере
+make test-e2e       # сквозные тесты в браузере (двумя окнами и на размере телефона)
 make analyse        # статический анализ
 ```
 
