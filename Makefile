@@ -73,7 +73,9 @@ test-frontend: ## Тесты фронтенда
 
 .PHONY: test-e2e
 test-e2e: ## Сквозные тесты в браузере
-	cd e2e && npx playwright test
+	docker run --rm --network host -v "$$(pwd)/e2e":/e2e -w /e2e \
+		--user $(UID):$(GID) -e HOME=/tmp -e PLAYWRIGHT_BROWSERS_PATH=/e2e/.cache/browsers \
+		mcr.microsoft.com/playwright:v1.63.0-noble npx playwright test
 
 .PHONY: analyse
 analyse: ## Статический анализ и стиль

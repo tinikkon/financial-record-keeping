@@ -1,0 +1,100 @@
+name: Проверки
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  движок-формул:
+    name: Движок формул
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Собрать образ PHP
+        run: docker compose build sheet-app
+
+      - name: Установить зависимости
+        run: |
+          docker run --rm -v "$PWD":/app -w /app/packages/formula-engine \
+            -e COMPOSER_HOME=/tmp/composer finance-sheet-app:latest \
+            composer install --no-interaction --no-progress
+
+      - name: Статический анализ
+        run: |
+          docker run --rm -v "$PWD":/app -w /app/packages/formula-engine \
+            finance-sheet-app:latest vendor/bin/phpstan analyse --no-progress
+
+      - name: Тесты
+        run: |
+          docker run --rm -v "$PWD":/app -w /app/packages/formula-engine \
+            finance-sheet-app:latest vendor/bin/pest
+
+  сервисы:
+    name: Сервисы
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Подготовить окружение
+        run: |
+          cp .env.example .env
+          make keys
+
+      - name: Поднять хранилище и очередь
+        run: |
+          docker compose up -d mongo mongo-replica-set-init rabbitmq
+          timeout 180 bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" "$(docker compose ps -q mongo)")" = healthy ]; do sleep 3; done'
+
+      - name: Установить зависимости
+        run: |
+          for сервис in sheet-service history-service; do
+            docker run --rm -v "$PWD":/app -w "/app/services/$сервис/src" \
+              -e COMPOSER_HOME=/tmp/composer finance-sheet-app:latest \
+              composer install --no-interaction --no-progress
+          done
+
+      - name: Статический анализ
+        run: |
+          for сервис in sheet-service history-service; do
+            docker run --rm --network finance_finance -v "$PWD":/app -w "/app/services/$сервис/src" \
+              finance-sheet-app:latest vendor/bin/phpstan analyse --no-progress
+          done
+
+      - name: Тесты
+        run: |
+          for сервис in sheet-service history-service; do
+            docker run --rm --network finance_finance -v "$PWD":/app -w "/app/services/$сервис/src" \
+              -v "$PWD/docker/secrets":/run/secrets:ro \
+              finance-sheet-app:latest sh -c 'php artisan key:generate --force && php artisan finance:create-indexes && vendor/bin/pest'
+          done
+
+  фронтенд:
+    name: Фронтенд
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - name: Проверка типов
+        run: npm run typecheck
+      - name: Тесты
+        run: npm test
+      - name: Сборка
+        run: npm run build
+        env:
+          VITE_SHEET_API_URL: http://localhost
+          VITE_HISTORY_API_URL: http://localhost
+          VITE_WEBSOCKET_HOST: localhost
+          VITE_WEBSOCKET_PORT: '8088'
+          VITE_WEBSOCKET_KEY: ключ
