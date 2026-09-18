@@ -43,7 +43,7 @@ final readonly class FormatCellsAction
 
         foreach ($range->references() as $reference) {
             $existing = $existingByAddress[$reference->key()] ?? null;
-            $merged = $existing?->format ?? [];
+            $merged = $existing === null ? [] : ($existing->format ?? []);
 
             foreach ($format as $property => $value) {
                 if ($value === null) {
@@ -63,7 +63,7 @@ final readonly class FormatCellsAction
 
             $updated[] = $this->cells->save($sheetIdentifier, $reference, [
                 'format' => $merged,
-                'kind' => $existing?->kind ?? CellKind::Empty->value,
+                'kind' => $existing === null ? CellKind::Empty->value : $existing->kind,
             ]);
         }
 

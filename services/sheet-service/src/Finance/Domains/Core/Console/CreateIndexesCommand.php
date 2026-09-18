@@ -7,6 +7,7 @@ namespace Finance\Domains\Core\Console;
 use Finance\Domains\Core\Contracts\ProvidesIndexes;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use MongoDB\Laravel\Connection;
 use MongoDB\Driver\Exception\Exception as MongoDriverException;
 
 /**
@@ -34,8 +35,11 @@ final class CreateIndexesCommand extends Command
     {
         $created = 0;
 
+        /** @var Connection $connection */
+        $connection = DB::connection('mongodb');
+
         foreach ($this->repositories as $repository) {
-            $collection = DB::connection('mongodb')->getCollection($repository->collectionName());
+            $collection = $connection->getCollection($repository->collectionName());
 
             foreach ($repository->indexes() as $index) {
                 try {

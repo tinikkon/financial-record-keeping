@@ -7,13 +7,14 @@ namespace Finance\Domains\Auth\Controllers;
 use Finance\Domains\Auth\Actions\LoginAction;
 use Finance\Domains\Auth\Actions\LogoutAction;
 use Finance\Domains\Auth\Actions\RefreshTokensAction;
+use Finance\Domains\Auth\Exceptions\InvalidAccessTokenException;
 use Finance\Domains\Auth\Exceptions\InvalidCredentialsException;
 use Finance\Domains\Auth\Exceptions\InvalidRefreshTokenException;
-use Finance\Domains\Auth\Models\UserModel;
 use Finance\Domains\Auth\Requests\LoginRequest;
 use Finance\Domains\Auth\Requests\RefreshTokenRequest;
 use Finance\Domains\Auth\Resources\AuthenticatedSessionResource;
 use Finance\Domains\Auth\Resources\UserResource;
+use Finance\Domains\Auth\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -46,14 +47,11 @@ final readonly class AuthController
         return new JsonResponse(status: JsonResponse::HTTP_NO_CONTENT);
     }
 
+    /**
+     * @throws InvalidAccessTokenException
+     */
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        if (! $user instanceof UserModel) {
-            return new JsonResponse(['message' => 'Требуется вход'], JsonResponse::HTTP_UNAUTHORIZED);
-        }
-
-        return new JsonResponse(UserResource::toArray($user));
+        return new JsonResponse(UserResource::toArray(CurrentUser::of($request)));
     }
 }

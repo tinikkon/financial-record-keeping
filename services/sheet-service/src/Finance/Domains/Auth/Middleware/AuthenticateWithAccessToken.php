@@ -17,6 +17,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class AuthenticateWithAccessToken
 {
+    public const string USER_ATTRIBUTE = 'finance.user';
+
     public function __construct(
         private AccessTokenIssuer $accessTokens,
         private UserRepositoryContract $users,
@@ -41,7 +43,7 @@ final readonly class AuthenticateWithAccessToken
             throw new InvalidAccessTokenException('Пользователь не найден');
         }
 
-        $request->setUserResolver(static fn () => $user);
+        $request->attributes->set(self::USER_ATTRIBUTE, $user);
 
         return $next($request);
     }

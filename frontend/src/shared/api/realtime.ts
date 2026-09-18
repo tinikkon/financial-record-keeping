@@ -35,6 +35,31 @@ export function realtimeConnection(): Echo<'reverb'> {
     return echo;
 }
 
+/**
+ * Сообщает о появлении и пропаже связи.
+ *
+ * Внутренности библиотеки сокетов спрятаны здесь: хранилищу листа незачем знать,
+ * как устроено подключение, а при подмене библиотеки менять придётся один файл.
+ */
+export function whenConnectionStateChanges(handler: (connected: boolean) => void): void {
+    const connection = realtimeConnection().connector.pusher.connection;
+
+    connection.bind('connected', () => handler(true));
+    connection.bind('disconnected', () => handler(false));
+    connection.bind('unavailable', () => handler(false));
+}
+
+/**
+ * Подписка на изменения листа. Прежняя подписка снимается: при переходе
+ * между месяцами иначе копились бы подписки на все открытые ранее листы.
+ */
+export function subscribeToSheet<TPacket>(sheetIdentifier: string, handler: (packet: TPacket) => void): void {
+    const connection = realtimeConnection();
+
+    connection.leave(`sheet.${sheetIdentifier}`);
+    connection.private(`sheet.${sheetIdentifier}`).listen('.cells.changed', handler);
+}
+
 export function dropRealtimeConnection(): void {
     echo?.disconnect();
     echo = null;
