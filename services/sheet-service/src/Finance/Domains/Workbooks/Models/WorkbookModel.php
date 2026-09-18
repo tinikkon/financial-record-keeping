@@ -29,7 +29,6 @@ final class WorkbookModel extends MongoModel
     ];
 
     protected $casts = [
-        'member_ids' => 'array',
         'created_at' => 'immutable_datetime',
         'updated_at' => 'immutable_datetime',
     ];

@@ -6,7 +6,10 @@ namespace Finance\Domains\Sheets\Controllers;
 
 use Finance\Domains\Auth\Exceptions\InvalidAccessTokenException;
 use Finance\Domains\Auth\Support\CurrentUser;
+use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
 use Finance\Domains\Sheets\Actions\CreateSheetAction;
+use Finance\Domains\Sheets\Actions\DeleteSheetAction;
+use Finance\Domains\Sheets\Actions\DuplicateSheetAction;
 use Finance\Domains\Sheets\Actions\FindAvailableSheetAction;
 use Finance\Domains\Sheets\Actions\RenameSheetAction;
 use Finance\Domains\Sheets\Actions\ReorderSheetsAction;
@@ -108,12 +111,32 @@ final readonly class SheetController
         Request $request,
         string $sheetIdentifier,
         FindAvailableSheetAction $findSheet,
-        SheetRepositoryContract $sheets,
+        DeleteSheetAction $deleteSheet,
     ): JsonResponse {
         $sheet = $findSheet->execute($sheetIdentifier, CurrentUser::identifier($request));
-        $sheets->delete($sheet->identifier());
+        $deleteSheet->execute($sheet);
 
         return new JsonResponse(status: JsonResponse::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * @throws InvalidAccessTokenException
+     * @throws SheetNotAvailableException
+     * @throws SheetNameAlreadyUsedException
+     * @throws InvalidFormulaException
+     */
+    public function duplicate(
+        CreateSheetRequest $request,
+        string $sheetIdentifier,
+        FindAvailableSheetAction $findSheet,
+        DuplicateSheetAction $duplicateSheet,
+    ): JsonResponse {
+        $userIdentifier = CurrentUser::identifier($request);
+        $source = $findSheet->execute($sheetIdentifier, $userIdentifier);
+
+        $copy = $duplicateSheet->execute($source, $request->name(), $userIdentifier);
+
+        return new JsonResponse(SheetResource::toArray($copy), JsonResponse::HTTP_CREATED);
     }
 
     /**
