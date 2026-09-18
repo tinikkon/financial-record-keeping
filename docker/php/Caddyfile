@@ -1,0 +1,14 @@
+{
+	frankenphp
+	# Сертификатами занимается traefik, внутренний сервер работает по обычному http.
+	auto_https off
+	admin off
+}
+
+{$SERVER_NAME} {
+	root {$APP_ROOT}
+	encode zstd gzip
+	php_server {
+		try_files {path} index.php
+	}
+}

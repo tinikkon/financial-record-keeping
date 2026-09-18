@@ -1,0 +1,200 @@
+name: ${COMPOSE_PROJECT_NAME:-finance}
+
+x-php-service: &php-service
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+    target: development
+    args:
+      UID: ${UID:-1000}
+      GID: ${GID:-1000}
+  volumes:
+    - .:/app
+  networks: [finance]
+  depends_on:
+    mongo-replica-set-init:
+      condition: service_completed_successfully
+    rabbitmq:
+      condition: service_healthy
+
+x-php-environment: &php-environment
+  MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/?replicaSet=rs0&authSource=admin
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: 5672
+  RABBITMQ_USER: ${RABBITMQ_USER}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+  MAIL_HOST: mailpit
+  MAIL_PORT: 1025
+
+services:
+  traefik:
+    image: traefik:v3
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=${COMPOSE_PROJECT_NAME:-finance}_finance
+      - --entryPoints.web.address=:80
+      - --log.level=INFO
+    ports:
+      - "${HTTP_PORT:-8088}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [finance]
+
+  # Ключ для взаимной проверки узлов набора реплик. Создаётся один раз в томе,
+  # в репозиторий не попадает.
+  mongo-keyfile-init:
+    image: mongo:8.3
+    user: root
+    command: >
+      bash -c "test -f /keyfile/mongo-keyfile || openssl rand -base64 756 > /keyfile/mongo-keyfile;
+               chmod 400 /keyfile/mongo-keyfile;
+               chown 999:999 /keyfile/mongo-keyfile"
+    volumes:
+      - mongo-keyfile:/keyfile
+    networks: [finance]
+
+  # Набор реплик из одного узла. Он нужен не ради отказоустойчивости, а потому что
+  # без него MongoDB не даёт ни транзакций, ни потоков изменений.
+  mongo:
+    image: mongo:8.3
+    command:
+      - mongod
+      - --replSet=rs0
+      - --bind_ip_all
+      - --keyFile=/keyfile/mongo-keyfile
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-keyfile:/keyfile:ro
+    depends_on:
+      mongo-keyfile-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [finance]
+
+  mongo-replica-set-init:
+    image: mongo:8.3
+    depends_on:
+      mongo:
+        condition: service_healthy
+    entrypoint:
+      - bash
+      - -c
+      - |
+        mongosh "mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/?authSource=admin" --quiet --eval '
+          try {
+            rs.status();
+            print("набор реплик уже поднят");
+          } catch (error) {
+            rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] });
+            print("набор реплик создан");
+          }
+        '
+    networks: [finance]
+
+  rabbitmq:
+    image: rabbitmq:4.3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.rabbitmq.rule: Host(`rabbit.${APP_DOMAIN}`)
+      traefik.http.services.rabbitmq.loadbalancer.server.port: "15672"
+    networks: [finance]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mailpit.rule: Host(`mail.${APP_DOMAIN}`)
+      traefik.http.services.mailpit.loadbalancer.server.port: "8025"
+    networks: [finance]
+
+  sheet-app:
+    <<: *php-service
+    working_dir: /app/services/sheet-service/src
+    environment:
+      <<: *php-environment
+      APP_ROOT: /app/services/sheet-service/src/public
+      MONGO_DATABASE: ${MONGO_SHEETS_DATABASE}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.sheet-app.rule: Host(`api.${APP_DOMAIN}`)
+      traefik.http.services.sheet-app.loadbalancer.server.port: "8000"
+
+  sheet-ws:
+    <<: *php-service
+    working_dir: /app/services/sheet-service/src
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    environment:
+      <<: *php-environment
+      MONGO_DATABASE: ${MONGO_SHEETS_DATABASE}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.sheet-ws.rule: Host(`ws.${APP_DOMAIN}`)
+      traefik.http.services.sheet-ws.loadbalancer.server.port: "8080"
+
+  history-app:
+    <<: *php-service
+    working_dir: /app/services/history-service/src
+    environment:
+      <<: *php-environment
+      APP_ROOT: /app/services/history-service/src/public
+      MONGO_DATABASE: ${MONGO_HISTORY_DATABASE}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.history-app.rule: Host(`history.${APP_DOMAIN}`)
+      traefik.http.services.history-app.loadbalancer.server.port: "8000"
+
+  history-worker:
+    <<: *php-service
+    working_dir: /app/services/history-service/src
+    command: ["php", "artisan", "finance:consume-sheet-events"]
+    environment:
+      <<: *php-environment
+      MONGO_DATABASE: ${MONGO_HISTORY_DATABASE}
+    restart: unless-stopped
+
+  frontend:
+    image: node:24-alpine
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+    volumes:
+      - ./frontend:/app
+    environment:
+      VITE_SHEET_API_URL: http://api.${APP_DOMAIN}:${HTTP_PORT:-8088}
+      VITE_HISTORY_API_URL: http://history.${APP_DOMAIN}:${HTTP_PORT:-8088}
+      VITE_WEBSOCKET_HOST: ws.${APP_DOMAIN}
+      VITE_WEBSOCKET_PORT: ${HTTP_PORT:-8088}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.frontend.rule: Host(`${APP_DOMAIN}`)
+      traefik.http.services.frontend.loadbalancer.server.port: "5173"
+    networks: [finance]
+
+networks:
+  finance:
+    name: ${COMPOSE_PROJECT_NAME:-finance}_finance
+
+volumes:
+  mongo-data:
+  mongo-keyfile:
+  rabbitmq-data:

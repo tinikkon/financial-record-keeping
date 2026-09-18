@@ -1,0 +1,17 @@
+/vendor/
+/node_modules/
+**/vendor/
+**/node_modules/
+**/.env
+**/.env.local
+/.env
+/docker/mongo/keyfile
+/services/*/src/storage/*.key
+/services/*/src/bootstrap/cache/*.php
+/frontend/dist/
+/e2e/test-results/
+/e2e/playwright-report/
+.idea/
+.vscode/
+.DS_Store
+*.log
