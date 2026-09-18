@@ -187,6 +187,10 @@ services:
     <<: *php-service
     working_dir: /app/services/history-service/src
     command: ["php", "artisan", "finance:consume-sheet-events"]
+    # Здесь нет ни веб-сервера, ни слушающего порта: проверять нечего, а общая
+    # проверка из шаблона пометила бы контейнер нездоровым навсегда.
+    healthcheck:
+      disable: true
     environment:
       <<: *php-environment
       MONGO_DATABASE: ${MONGO_HISTORY_DATABASE}
