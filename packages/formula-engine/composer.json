@@ -5,7 +5,7 @@
     "license": "proprietary",
     "require": {
         "php": "^8.4",
-        "brick/math": "^1.0",
+        "brick/math": "^0.19",
         "ext-mbstring": "*"
     },
     "require-dev": {

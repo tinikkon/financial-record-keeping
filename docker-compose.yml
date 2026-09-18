@@ -10,6 +10,7 @@ x-php-service: &php-service
       GID: ${GID:-1000}
   volumes:
     - .:/app
+    - ./docker/secrets:/run/secrets:ro
   networks: [finance]
   depends_on:
     mongo-replica-set-init:
