@@ -48,7 +48,6 @@ final class SheetModel extends MongoModel
         'version' => 'integer',
         'row_count' => 'integer',
         'column_count' => 'integer',
-        'column_widths' => 'array',
         'created_at' => 'immutable_datetime',
         'updated_at' => 'immutable_datetime',
     ];
