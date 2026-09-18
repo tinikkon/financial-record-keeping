@@ -12,6 +12,15 @@ x-php-service: &php-service
     - .:/app
     - ./docker/secrets:/run/secrets:ro
   networks: [finance]
+  # Своя проверка вместо встроенной в образ: та опрашивает административный
+  # интерфейс Caddy, который выключен, и контейнер вечно числился нездоровым —
+  # traefik такие контейнеры в маршрутизацию не берёт.
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/up"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 20s
   depends_on:
     mongo-replica-set-init:
       condition: service_completed_successfully
@@ -35,6 +44,9 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedByDefault=false
       - --providers.docker.network=${COMPOSE_PROJECT_NAME:-finance}_finance
+      # Иначе traefik читает весь сокет Docker и подхватывает контейнеры соседних
+      # проектов, запущенных на этой же машине.
+      - --providers.docker.constraints=Label(`com.docker.compose.project`,`${COMPOSE_PROJECT_NAME:-finance}`)
       - --entryPoints.web.address=:80
       - --log.level=INFO
     ports:
