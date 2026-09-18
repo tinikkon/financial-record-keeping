@@ -433,3 +433,52 @@ button {
     border-radius: 6px;
     font: inherit;
 }
+
+.сводка__месяц {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--цвет-границы);
+}
+
+.сводка__название {
+    margin: 0;
+    font-size: 15px;
+}
+
+.сводка__правки {
+    margin: 2px 0 8px;
+    font-size: 12px;
+    color: var(--цвет-приглушённый);
+}
+
+.сводка__итоги {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.сводка__итоги th {
+    width: 32px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--цвет-приглушённый);
+}
+
+.сводка__итоги td {
+    text-align: right;
+}
+
+.сводка__ячеек {
+    width: 60px;
+    color: var(--цвет-приглушённый);
+    font-size: 12px;
+}
+
+.история__вернуть {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border: 1px solid var(--цвет-границы);
+    border-radius: 6px;
+    background: var(--цвет-фона);
+    font-size: 12px;
+}

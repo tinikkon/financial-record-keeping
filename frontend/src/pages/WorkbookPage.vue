@@ -6,14 +6,17 @@ import FormulaBar from '../features/sheet-grid/FormulaBar.vue';
 import SheetTabs from '../features/sheet-tabs/SheetTabs.vue';
 import CellHistoryPanel from '../features/history-panel/CellHistoryPanel.vue';
 import CellFormatBar from '../features/cell-format/CellFormatBar.vue';
+import WorkbookSummaryPanel from '../features/summary-panel/WorkbookSummaryPanel.vue';
 import { useAuthStore } from '../stores/auth';
 import { useSheetStore } from '../stores/sheet';
 import { cellAddress, type CellFormat } from '../entities/sheet';
 import { useHistoryStore } from '../stores/history';
+import { useSummaryStore } from '../stores/summary';
 
 const authentication = useAuthStore();
 const sheet = useSheetStore();
 const history = useHistoryStore();
+const summary = useSummaryStore();
 const router = useRouter();
 
 const выбранная = ref({ row: 3, column: 1 });
@@ -40,6 +43,19 @@ async function скопироватьМесяц(название: string): Promi
 
 async function оформить(изменения: CellFormat): Promise<void> {
     await sheet.applyFormat(выбранная.value.row, выбранная.value.column, изменения);
+}
+
+async function показатьСводку(): Promise<void> {
+    if (sheet.workbook === null) {
+        return;
+    }
+
+    await summary.show(sheet.workbook.id);
+}
+
+async function вернутьКВерсии(версия: number): Promise<void> {
+    await sheet.restoreToVersion(версия);
+    history.close();
 }
 
 async function показатьИсторию(): Promise<void> {
@@ -73,6 +89,7 @@ async function выйти(): Promise<void> {
             <button type="button" class="полоса-состояния__действие" @click="показатьИсторию">
                 История ячейки
             </button>
+            <button type="button" class="полоса-состояния__действие" @click="показатьСводку">Сводка</button>
             <span v-if="authentication.user !== null">{{ authentication.user.name }}</span>
             <button type="button" class="полоса-состояния__выход" @click="выйти">Выйти</button>
         </div>
@@ -98,7 +115,8 @@ async function выйти(): Promise<void> {
             @commit="сохранитьЯчейку"
         />
 
-        <CellHistoryPanel />
+        <CellHistoryPanel @вернуть="вернутьКВерсии" />
+        <WorkbookSummaryPanel />
 
         <SheetTabs
             :sheets="sheet.sheets"
