@@ -277,6 +277,15 @@ button {
     background: var(--цвет-фона);
 }
 
+.вкладки__название {
+    flex: 0 0 auto;
+    width: 120px;
+    padding: 6px 10px;
+    border: 1px solid var(--цвет-выделения);
+    border-radius: 6px;
+    font: inherit;
+}
+
 .вкладки__вкладка--активная {
     border-color: var(--цвет-выделения);
     color: var(--цвет-выделения);
