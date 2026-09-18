@@ -4,12 +4,15 @@ import { useRouter } from 'vue-router';
 import SheetGrid from '../features/sheet-grid/SheetGrid.vue';
 import FormulaBar from '../features/sheet-grid/FormulaBar.vue';
 import SheetTabs from '../features/sheet-tabs/SheetTabs.vue';
+import CellHistoryPanel from '../features/history-panel/CellHistoryPanel.vue';
 import { useAuthStore } from '../stores/auth';
 import { useSheetStore } from '../stores/sheet';
 import { cellAddress } from '../entities/sheet';
+import { useHistoryStore } from '../stores/history';
 
 const authentication = useAuthStore();
 const sheet = useSheetStore();
+const history = useHistoryStore();
 const router = useRouter();
 
 const выбранная = ref({ row: 3, column: 1 });
@@ -34,6 +37,14 @@ async function скопироватьМесяц(название: string): Promi
     await sheet.duplicateSheet(название);
 }
 
+async function показатьИсторию(): Promise<void> {
+    if (sheet.activeSheet === null) {
+        return;
+    }
+
+    await history.showForCell(sheet.activeSheet.id, cellAddress(выбранная.value.row, выбранная.value.column));
+}
+
 async function выйти(): Promise<void> {
     sheet.reset();
     await authentication.logout();
@@ -54,6 +65,9 @@ async function выйти(): Promise<void> {
             <span v-if="sheet.activeSheet !== null">Версия листа: {{ sheet.activeSheet.version }}</span>
             <span v-if="sheet.errorMessage !== null" class="сообщение-об-ошибке">{{ sheet.errorMessage }}</span>
             <span class="полоса-состояния__разделитель"></span>
+            <button type="button" class="полоса-состояния__действие" @click="показатьИсторию">
+                История ячейки
+            </button>
             <span v-if="authentication.user !== null">{{ authentication.user.name }}</span>
             <button type="button" class="полоса-состояния__выход" @click="выйти">Выйти</button>
         </div>
@@ -76,6 +90,8 @@ async function выйти(): Promise<void> {
             @select="выбранная = $event"
             @commit="сохранитьЯчейку"
         />
+
+        <CellHistoryPanel />
 
         <SheetTabs
             :sheets="sheet.sheets"

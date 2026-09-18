@@ -302,3 +302,75 @@ button {
         padding: 0 8px;
     }
 }
+
+.полоса-состояния__действие {
+    border: none;
+    background: none;
+    color: var(--цвет-выделения);
+    text-decoration: underline;
+}
+
+.история {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    width: min(340px, 100%);
+    border-left: 1px solid var(--цвет-границы);
+    background: var(--цвет-фона);
+    box-shadow: -8px 0 24px rgb(0 0 0 / 8%);
+}
+
+.история__шапка {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border-bottom: 1px solid var(--цвет-границы);
+}
+
+.история__закрыть {
+    border: none;
+    background: none;
+    font-size: 16px;
+    color: var(--цвет-приглушённый);
+}
+
+.история__сообщение {
+    margin: 0;
+    padding: 16px 12px;
+    color: var(--цвет-приглушённый);
+}
+
+.история__список {
+    margin: 0;
+    padding: 8px 12px;
+    list-style: none;
+    overflow-y: auto;
+}
+
+.история__правка {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--цвет-границы);
+}
+
+.история__когда {
+    font-size: 12px;
+    color: var(--цвет-приглушённый);
+}
+
+.история__что {
+    font-variant-numeric: tabular-nums;
+}
+
+.история__формула {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--цвет-приглушённый);
+}
