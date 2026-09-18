@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { sheetApi } from '../shared/api/client';
-import { dropRealtimeConnection, realtimeConnection } from '../shared/api/realtime';
+import { dropRealtimeConnection, subscribeToSheet, whenConnectionStateChanges } from '../shared/api/realtime';
 import type { Cell, CellEdit, Sheet, Workbook } from '../entities/sheet';
 
 interface SheetContentResponse {
@@ -179,19 +179,11 @@ export const useSheetStore = defineStore('sheet', () => {
     }
 
     function listenToSheet(sheetIdentifier: string): void {
-        const connection = realtimeConnection();
-
-        connection.connector.pusher.connection.bind('connected', () => {
-            isConnected.value = true;
-        });
-        connection.connector.pusher.connection.bind('disconnected', () => {
-            isConnected.value = false;
+        whenConnectionStateChanges((connected) => {
+            isConnected.value = connected;
         });
 
-        connection.leave(`sheet.${sheetIdentifier}`);
-        connection
-            .private(`sheet.${sheetIdentifier}`)
-            .listen('.cells.changed', (packet: IncomingPacket) => void applyIncomingPacket(packet));
+        subscribeToSheet<IncomingPacket>(sheetIdentifier, (packet) => void applyIncomingPacket(packet));
     }
 
     function reset(): void {

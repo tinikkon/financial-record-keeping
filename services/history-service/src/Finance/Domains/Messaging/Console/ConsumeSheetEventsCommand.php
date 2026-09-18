@@ -31,7 +31,7 @@ final class ConsumeSheetEventsCommand extends Command
     {
         /** @var array<string, mixed> $settings */
         $settings = config('messaging.rabbitmq');
-        $queueName = (string) env('RABBITMQ_QUEUE', 'history.sheet-events');
+        $queueName = (string) $settings['queue'];
 
         $connection = new AMQPStreamConnection(
             host: (string) $settings['host'],

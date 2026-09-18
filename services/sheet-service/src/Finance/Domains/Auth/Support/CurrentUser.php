@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finance\Domains\Auth\Support;
 
 use Finance\Domains\Auth\Exceptions\InvalidAccessTokenException;
+use Finance\Domains\Auth\Middleware\AuthenticateWithAccessToken;
 use Finance\Domains\Auth\Models\UserModel;
 use Illuminate\Http\Request;
 
@@ -21,7 +22,7 @@ final readonly class CurrentUser
      */
     public static function of(Request $request): UserModel
     {
-        $user = $request->user();
+        $user = $request->attributes->get(AuthenticateWithAccessToken::USER_ATTRIBUTE);
 
         if (! $user instanceof UserModel) {
             throw new InvalidAccessTokenException();

@@ -68,6 +68,7 @@ final class CellRepository extends AbstractMongoRepository implements CellReposi
         ];
 
         /** @var Collection<int, CellModel> $cells */
+        // @phpstan-ignore argument.type (построитель MongoDB принимает фильтр массивом, базовая подпись описана строкой)
         $cells = $this->query()->whereRaw($filter)->get();
 
         return $cells;

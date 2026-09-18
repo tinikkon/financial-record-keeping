@@ -156,6 +156,13 @@ services:
     <<: *php-service
     working_dir: /app/services/sheet-service/src
     command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    # Здесь работает сокет-сервер, а не веб-сервер: проверяется, что порт слушает.
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8080) ? 0 : 1);"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     environment:
       <<: *php-environment
       MONGO_DATABASE: ${MONGO_SHEETS_DATABASE}

@@ -12,6 +12,7 @@ return [
         'vhost' => env('RABBITMQ_VHOST', 'finance'),
         'exchange' => env('RABBITMQ_EXCHANGE', 'finance.events'),
         'connection_timeout' => 3.0,
+        'queue' => env('RABBITMQ_QUEUE', 'history.sheet-events'),
     ],
 
     'routing_keys' => [
