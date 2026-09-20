@@ -123,3 +123,34 @@ test('лист выгружается в CSV', async ({ page }) => {
 
     expect(содержимое).toContain('Продукты;248,6');
 });
+
+test('вставка строки сдвигает содержимое и формулу', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'B', 3, '120');
+    await вписать(page, 'B', 4, '80');
+    await вписать(page, 'B', 10, '=СУММ(B3:B9)');
+
+    await ячейка(page, 'A', 4).click();
+    await page.getByRole('button', { name: 'Вставить строку' }).click();
+
+    await expect(ячейка(page, 'B', 5)).toHaveText('80');
+    await expect(ячейка(page, 'B', 4)).toHaveText('');
+    await expect(ячейка(page, 'B', 11)).toHaveText('200');
+});
+
+test('удаление строки поднимает нижние и пересчитывает итог', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'B', 3, '120');
+    await вписать(page, 'B', 4, '80');
+    await вписать(page, 'B', 10, '=СУММ(B3:B9)');
+
+    await ячейка(page, 'A', 4).click();
+    await page.getByRole('button', { name: 'Удалить строку' }).click();
+
+    await expect(ячейка(page, 'B', 4)).toHaveText('');
+    await expect(ячейка(page, 'B', 9)).toHaveText('120');
+});

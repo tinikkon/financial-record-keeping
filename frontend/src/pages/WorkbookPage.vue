@@ -58,6 +58,14 @@ async function вернутьКВерсии(версия: number): Promise<void>
     history.close();
 }
 
+async function вставитьСтроку(): Promise<void> {
+    await sheet.insertRow(выбранная.value.row);
+}
+
+async function удалитьСтроку(): Promise<void> {
+    await sheet.deleteRow(выбранная.value.row);
+}
+
 async function показатьИсторию(): Promise<void> {
     if (sheet.activeSheet === null) {
         return;
@@ -90,6 +98,12 @@ async function выйти(): Promise<void> {
                 История ячейки
             </button>
             <button type="button" class="полоса-состояния__действие" @click="показатьСводку">Сводка</button>
+            <button type="button" class="полоса-состояния__действие" @click="вставитьСтроку">
+                Вставить строку
+            </button>
+            <button type="button" class="полоса-состояния__действие" @click="удалитьСтроку">
+                Удалить строку
+            </button>
             <button type="button" class="полоса-состояния__действие" @click="sheet.exportActiveSheetToCsv">
                 Выгрузить CSV
             </button>

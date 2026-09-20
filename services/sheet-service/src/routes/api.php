@@ -27,6 +27,8 @@ Route::middleware('access-token')->group(static function (): void {
     Route::delete('sheets/{sheetIdentifier}', [SheetController::class, 'destroy']);
     Route::post('sheets/{sheetIdentifier}/duplicate', [SheetController::class, 'duplicate']);
     Route::get('sheets/{sheetIdentifier}/csv', [SheetController::class, 'export']);
+    Route::post('sheets/{sheetIdentifier}/rows/insert', [SheetController::class, 'insertRows']);
+    Route::post('sheets/{sheetIdentifier}/rows/delete', [SheetController::class, 'deleteRows']);
 
     Route::get('sheets/{sheetIdentifier}/cells', [CellController::class, 'show']);
     Route::patch('sheets/{sheetIdentifier}/cells', [CellController::class, 'update']);

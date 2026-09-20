@@ -97,3 +97,33 @@ function valueAt(array $response, string $address): ?string
     return null;
 }
 
+
+/**
+ * @param array<string, mixed> $response
+ */
+function inputAt(array $response, string $address): ?string
+{
+    foreach ($response['cells'] as $cell) {
+        if ($cell['address'] === $address) {
+            return $cell['input'];
+        }
+    }
+
+    return null;
+}
+
+/**
+ * @param array<string, mixed> $response
+ *
+ * @return array<string, mixed>
+ */
+function formatAt(array $response, string $address): array
+{
+    foreach ($response['cells'] as $cell) {
+        if ($cell['address'] === $address) {
+            return (array) $cell['format'];
+        }
+    }
+
+    return [];
+}

@@ -14,15 +14,22 @@ use Finance\Domains\Sheets\Actions\ExportSheetToCsvAction;
 use Finance\Domains\Sheets\Actions\FindAvailableSheetAction;
 use Finance\Domains\Sheets\Actions\RenameSheetAction;
 use Finance\Domains\Sheets\Actions\ReorderSheetsAction;
+use Finance\Domains\Sheets\Actions\ShiftSheetRowsAction;
 use Finance\Domains\Sheets\Actions\UpdateColumnWidthsAction;
 use Finance\Domains\Sheets\Contracts\SheetRepositoryContract;
 use Finance\Domains\Sheets\Exceptions\SheetNameAlreadyUsedException;
+use Finance\Domains\Sheets\Exceptions\RowsWouldOverflowSheetException;
 use Finance\Domains\Sheets\Exceptions\SheetNotAvailableException;
 use Finance\Domains\Sheets\Models\SheetModel;
 use Finance\Domains\Sheets\Requests\CreateSheetRequest;
 use Finance\Domains\Sheets\Requests\ReorderSheetsRequest;
+use Finance\Domains\Sheets\Requests\ShiftRowsRequest;
 use Finance\Domains\Sheets\Requests\UpdateSheetRequest;
 use Finance\Domains\Sheets\Resources\SheetResource;
+use Finance\Domains\Cells\Actions\AppliedCellEdits;
+use Finance\Domains\Cells\Resources\CellResource;
+use Finance\Domains\Messaging\Actions\PublishCellsChangedAction;
+use Finance\Domains\Realtime\Actions\BroadcastCellsChangedAction;
 use Finance\Domains\Workbooks\Actions\FindAvailableWorkbookAction;
 use Finance\Domains\Workbooks\Exceptions\WorkbookNotAvailableException;
 use Illuminate\Http\JsonResponse;
@@ -161,6 +168,74 @@ final readonly class SheetController
             ->all();
 
         return new JsonResponse(['sheets' => $ordered]);
+    }
+
+    /**
+     * Вставляет строки перед указанной; всё, что ниже, съезжает вниз.
+     *
+     * @throws InvalidAccessTokenException
+     * @throws SheetNotAvailableException
+     * @throws RowsWouldOverflowSheetException
+     * @throws InvalidFormulaException
+     */
+    public function insertRows(
+        ShiftRowsRequest $request,
+        string $sheetIdentifier,
+        FindAvailableSheetAction $findSheet,
+        ShiftSheetRowsAction $shiftRows,
+        BroadcastCellsChangedAction $broadcastChanges,
+        PublishCellsChangedAction $publishChanges,
+    ): JsonResponse {
+        $userIdentifier = CurrentUser::identifier($request);
+        $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
+
+        $applied = $shiftRows->insert($sheet, $request->row(), $request->count(), $userIdentifier);
+
+        return $this->applied($sheet, $applied, $userIdentifier, $broadcastChanges, $publishChanges);
+    }
+
+    /**
+     * Удаляет строки; всё, что ниже, поднимается на их место.
+     *
+     * @throws InvalidAccessTokenException
+     * @throws SheetNotAvailableException
+     * @throws RowsWouldOverflowSheetException
+     * @throws InvalidFormulaException
+     */
+    public function deleteRows(
+        ShiftRowsRequest $request,
+        string $sheetIdentifier,
+        FindAvailableSheetAction $findSheet,
+        ShiftSheetRowsAction $shiftRows,
+        BroadcastCellsChangedAction $broadcastChanges,
+        PublishCellsChangedAction $publishChanges,
+    ): JsonResponse {
+        $userIdentifier = CurrentUser::identifier($request);
+        $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
+
+        $applied = $shiftRows->delete($sheet, $request->row(), $request->count(), $userIdentifier);
+
+        return $this->applied($sheet, $applied, $userIdentifier, $broadcastChanges, $publishChanges);
+    }
+
+    /**
+     * Ответ на перестройку листа — тот же, что и на обычную пачку правок:
+     * клиент применяет её тем же кодом.
+     */
+    private function applied(
+        SheetModel $sheet,
+        AppliedCellEdits $applied,
+        string $userIdentifier,
+        BroadcastCellsChangedAction $broadcastChanges,
+        PublishCellsChangedAction $publishChanges,
+    ): JsonResponse {
+        $broadcastChanges->execute($sheet->identifier(), $applied->sheetVersion, $applied->cells, $userIdentifier);
+        $publishChanges->execute($sheet, $applied->sheetVersion, $applied->cells, $userIdentifier);
+
+        return new JsonResponse([
+            'sheetVersion' => $applied->sheetVersion,
+            'cells' => array_map(CellResource::toArray(...), $applied->cells),
+        ]);
     }
 
     /**
