@@ -66,3 +66,26 @@ test('курсив и выравнивание видны в ячейке', asyn
     await expect(ячейка(page, 'B', 3)).toHaveCSS('font-style', 'italic');
     await expect(ячейка(page, 'B', 3)).toHaveCSS('text-align', 'center');
 });
+
+test('выделение с shift красит и стирает сразу несколько ячеек', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'B', 3, '120');
+    await вписать(page, 'C', 3, '80');
+
+    await ячейка(page, 'B', 3).click();
+    await ячейка(page, 'C', 3).click({ modifiers: ['Shift'] });
+
+    await page.getByRole('button', { name: 'Жёлтая' }).click();
+
+    await expect(ячейка(page, 'B', 3)).toHaveCSS('background-color', 'rgb(255, 243, 176)');
+    await expect(ячейка(page, 'C', 3)).toHaveCSS('background-color', 'rgb(255, 243, 176)');
+
+    await ячейка(page, 'B', 3).click();
+    await ячейка(page, 'C', 3).click({ modifiers: ['Shift'] });
+    await page.keyboard.press('Delete');
+
+    await expect(ячейка(page, 'B', 3)).toHaveText('');
+    await expect(ячейка(page, 'C', 3)).toHaveText('');
+});

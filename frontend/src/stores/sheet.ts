@@ -15,6 +15,13 @@ interface AppliedEditsResponse {
     cells: Cell[];
 }
 
+export interface CellRangeSelection {
+    startRow: number;
+    startColumn: number;
+    endRow: number;
+    endColumn: number;
+}
+
 interface IncomingPacket {
     sheetVersion: number;
     cells: Cell[];
@@ -242,7 +249,7 @@ export const useSheetStore = defineStore('sheet', () => {
      * Свойство со значением undefined сервер понимает как снятие: так можно
      * убрать заливку, не сбрасывая заодно жирность.
      */
-    async function applyFormat(row: number, column: number, format: CellFormat): Promise<void> {
+    async function applyFormat(range: CellRangeSelection, format: CellFormat): Promise<void> {
         if (activeSheet.value === null) {
             return;
         }
@@ -258,10 +265,7 @@ export const useSheetStore = defineStore('sheet', () => {
                 `sheets/${activeSheet.value.id}/cells/format`,
                 {
                     method: 'PATCH',
-                    body: {
-                        range: { startRow: row, startColumn: column, endRow: row, endColumn: column },
-                        format: свойства,
-                    },
+                    body: { range, format: свойства },
                 },
             );
 
@@ -320,6 +324,21 @@ export const useSheetStore = defineStore('sheet', () => {
         } catch (error) {
             errorMessage.value = error instanceof Error ? error.message : 'Не удалось вернуть лист';
         }
+    }
+
+    /**
+     * Стирает содержимое выделенного прямоугольника одной пачкой правок.
+     */
+    async function clearRange(range: CellRangeSelection): Promise<void> {
+        const edits: CellEdit[] = [];
+
+        for (let row = range.startRow; row <= range.endRow; row++) {
+            for (let column = range.startColumn; column <= range.endColumn; column++) {
+                edits.push({ row, column, input: null });
+            }
+        }
+
+        await applyEdits(edits);
     }
 
     /**
@@ -433,6 +452,7 @@ export const useSheetStore = defineStore('sheet', () => {
         duplicateSheet,
         applyEdits,
         applyFormat,
+        clearRange,
         applyIncomingPacket,
         exportActiveSheetToCsv,
         insertRow,

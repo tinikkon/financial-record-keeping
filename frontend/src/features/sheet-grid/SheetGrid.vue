@@ -21,6 +21,8 @@ const emit = defineEmits<{
     select: [position: { row: number; column: number }];
     commit: [edit: { row: number; column: number; input: string | null }];
     'ширина-колонки': [колонка: string, ширина: number];
+    'выделение': [диапазон: { startRow: number; startColumn: number; endRow: number; endColumn: number }];
+    'очистить-выделение': [];
 }>();
 
 const корень = ref<HTMLElement | null>(null);
@@ -42,6 +44,9 @@ const исходноеЗначение = ref('');
 // она уходит один раз, когда границу отпустили.
 const растягиваемаяКолонка = ref<{ номер: number; ширина: number } | null>(null);
 const началоРастягивания = { отX: 0, отШирины: 0 };
+// Начало выделения. Диапазон — всё, что между ним и выбранной ячейкой, поэтому
+// хранить достаточно одну точку.
+const якорьВыделения = ref({ row: properties.selected.row, column: properties.selected.column });
 
 const колонки = computed(() => Array.from({ length: properties.columnCount }, (_, index) => index + 1));
 
@@ -59,6 +64,18 @@ const видимыеСтроки = computed(() => {
 
 const отступОкна = computed(() => ((видимыеСтроки.value[0] ?? 1) - 1) * высотаСтроки.value);
 const полнаяВысота = computed(() => properties.rowCount * высотаСтроки.value);
+const диапазонВыделения = computed(() => ({
+    startRow: Math.min(якорьВыделения.value.row, properties.selected.row),
+    endRow: Math.max(якорьВыделения.value.row, properties.selected.row),
+    startColumn: Math.min(якорьВыделения.value.column, properties.selected.column),
+    endColumn: Math.max(якорьВыделения.value.column, properties.selected.column),
+}));
+
+const режимВыделенияДиапазона = computed(
+    () => диапазонВыделения.value.startRow !== диапазонВыделения.value.endRow
+        || диапазонВыделения.value.startColumn !== диапазонВыделения.value.endColumn,
+);
+
 const режимВвода = computed(() => (редактируемоеЗначение.value.startsWith('=') ? 'text' : 'decimal'));
 
 /**
@@ -154,14 +171,30 @@ function выбрана(row: number, column: number): boolean {
     return properties.selected.row === row && properties.selected.column === column;
 }
 
+function вВыделении(row: number, column: number): boolean {
+    const диапазон = диапазонВыделения.value;
+
+    return режимВыделенияДиапазона.value
+        && row >= диапазон.startRow
+        && row <= диапазон.endRow
+        && column >= диапазон.startColumn
+        && column <= диапазон.endColumn;
+}
+
 function приПрокрутке(event: Event): void {
     const цель = event.target as HTMLElement;
     смещениеПрокрутки.value = цель.scrollTop;
     высотаОбласти.value = цель.clientHeight;
 }
 
-function выбрать(row: number, column: number): void {
+function выбрать(row: number, column: number, событие: MouseEvent): void {
     сохранить();
+
+    // Щелчок с shift растягивает выделение от прежнего начала, обычный —
+    // начинает новое.
+    if (!событие.shiftKey) {
+        якорьВыделения.value = { row, column };
+    }
 
     // Щелчок по ячейке возвращает фокус сетке: иначе после работы с вкладками
     // или панелями нажатия клавиш уходят в никуда и ввод не начинается.
@@ -222,9 +255,13 @@ function сохранить(): void {
     });
 }
 
-function сдвинуть(строкой: number, колонкой: number): void {
+function сдвинуть(строкой: number, колонкой: number, расширяя = false): void {
     const row = Math.min(Math.max(1, properties.selected.row + строкой), properties.rowCount);
     const column = Math.min(Math.max(1, properties.selected.column + колонкой), properties.columnCount);
+
+    if (!расширяя) {
+        якорьВыделения.value = { row, column };
+    }
 
     emit('select', { row, column });
 }
@@ -234,16 +271,26 @@ function приНажатии(event: KeyboardEvent): void {
         return;
     }
 
+    const очистить = (): void => {
+        if (режимВыделенияДиапазона.value) {
+            emit('очистить-выделение');
+
+            return;
+        }
+
+        emit('commit', { ...properties.selected, input: null });
+    };
+
     const действия: Record<string, () => void> = {
-        ArrowUp: () => сдвинуть(-1, 0),
-        ArrowDown: () => сдвинуть(1, 0),
-        ArrowLeft: () => сдвинуть(0, -1),
-        ArrowRight: () => сдвинуть(0, 1),
+        ArrowUp: () => сдвинуть(-1, 0, event.shiftKey),
+        ArrowDown: () => сдвинуть(1, 0, event.shiftKey),
+        ArrowLeft: () => сдвинуть(0, -1, event.shiftKey),
+        ArrowRight: () => сдвинуть(0, 1, event.shiftKey),
         Enter: () => начатьРедактирование(),
         F2: () => начатьРедактирование(),
         Tab: () => сдвинуть(0, 1),
-        Delete: () => emit('commit', { ...properties.selected, input: null }),
-        Backspace: () => emit('commit', { ...properties.selected, input: null }),
+        Delete: очистить,
+        Backspace: очистить,
     };
 
     const действие = действия[event.key];
@@ -325,6 +372,8 @@ watch(
     () => отменитьРедактирование(),
 );
 
+watch(диапазонВыделения, (диапазон) => emit('выделение', диапазон), { immediate: true });
+
 onUnmounted(() => {
     document.removeEventListener('mousemove', приРастягивании);
     document.removeEventListener('mouseup', закончитьРастягивание);
@@ -377,10 +426,11 @@ defineExpose({ начатьРедактирование });
                             class="сетка__ячейка"
                             :class="{
                                 'сетка__ячейка--выбрана': выбрана(row, column),
+                                'сетка__ячейка--в-выделении': вВыделении(row, column),
                                 'сетка__ячейка--ошибка': ячейка(row, column)?.error != null,
                             }"
                             :style="{ width: `${ширинаКолонки(column)}px`, ...стильЯчейки(ячейка(row, column)) }"
-                            @click="выбрать(row, column)"
+                            @click="выбрать(row, column, $event)"
                             @dblclick="начатьРедактирование()"
                         >
                             {{ displayedText(ячейка(row, column)) }}

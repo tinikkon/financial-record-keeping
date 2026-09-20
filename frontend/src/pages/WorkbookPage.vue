@@ -8,7 +8,7 @@ import CellHistoryPanel from '../features/history-panel/CellHistoryPanel.vue';
 import CellFormatBar from '../features/cell-format/CellFormatBar.vue';
 import WorkbookSummaryPanel from '../features/summary-panel/WorkbookSummaryPanel.vue';
 import { useAuthStore } from '../stores/auth';
-import { useSheetStore } from '../stores/sheet';
+import { useSheetStore, type CellRangeSelection } from '../stores/sheet';
 import { cellAddress, type CellFormat } from '../entities/sheet';
 import { useHistoryStore } from '../stores/history';
 import { useSummaryStore } from '../stores/summary';
@@ -20,6 +20,7 @@ const summary = useSummaryStore();
 const router = useRouter();
 
 const выбранная = ref({ row: 3, column: 1 });
+const выделенное = ref<CellRangeSelection>({ startRow: 3, startColumn: 1, endRow: 3, endColumn: 1 });
 const сетка = ref<InstanceType<typeof SheetGrid> | null>(null);
 
 const выбраннаяЯчейка = computed(() => sheet.cells.get(cellAddress(выбранная.value.row, выбранная.value.column)));
@@ -50,7 +51,11 @@ async function удалитьМесяц(sheetIdentifier: string): Promise<void> 
 }
 
 async function оформить(изменения: CellFormat): Promise<void> {
-    await sheet.applyFormat(выбранная.value.row, выбранная.value.column, изменения);
+    await sheet.applyFormat(выделенное.value, изменения);
+}
+
+async function очиститьВыделенное(): Promise<void> {
+    await sheet.clearRange(выделенное.value);
 }
 
 async function показатьСводку(): Promise<void> {
@@ -139,6 +144,8 @@ async function выйти(): Promise<void> {
             @select="выбранная = $event"
             @commit="сохранитьЯчейку"
             @ширина-колонки="sheet.updateColumnWidth"
+            @выделение="выделенное = $event"
+            @очистить-выделение="очиститьВыделенное"
         />
 
         <CellHistoryPanel @вернуть="вернутьКВерсии" />
