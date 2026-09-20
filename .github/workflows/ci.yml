@@ -98,3 +98,40 @@ jobs:
           VITE_WEBSOCKET_HOST: localhost
           VITE_WEBSOCKET_PORT: '8088'
           VITE_WEBSOCKET_KEY: ключ
+
+  сквозные-тесты:
+    name: Сквозные тесты
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Подготовить окружение
+        run: |
+          cp .env.example .env
+          make keys
+
+      - name: Собрать образы и поставить зависимости
+        run: |
+          docker compose build
+          make install
+
+      - name: Поднять окружение
+        run: |
+          docker compose up -d
+          timeout 300 bash -c 'until curl -sf -o /dev/null -H "Host: finance.localhost" http://localhost:8088/; do sleep 5; done'
+
+      - name: Индексы и пользователи
+        run: |
+          docker compose exec -T sheet-app php artisan finance:create-indexes
+          docker compose exec -T history-app php artisan finance:create-indexes
+          make users
+
+      - name: Прогон в браузере
+        run: make test-e2e
+
+      - name: Отчёт о падении
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: сквозные-тесты
+          path: e2e/test-results

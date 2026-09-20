@@ -29,6 +29,12 @@ install: ## Установить зависимости всех частей п
 	$(COMPOSE) run --rm --no-deps --workdir /app/packages/formula-engine sheet-app composer install
 	$(COMPOSE) run --rm --no-deps frontend npm install
 
+.PHONY: users
+users: ## Завести двух пользователей местного окружения
+	@# Повторный запуск безвреден: команда просто сообщит, что почта уже занята.
+	-$(COMPOSE) exec -T sheet-app php artisan finance:create-user kostya@example.com Костя --password=finance-local-8
+	-$(COMPOSE) exec -T sheet-app php artisan finance:create-user wife@example.com Жена --password=finance-local-8
+
 .PHONY: up
 up: ## Поднять всё окружение
 	$(COMPOSE) up -d
