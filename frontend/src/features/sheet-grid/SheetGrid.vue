@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { cellAddress, columnToLetters, displayedText, type Cell } from '../../entities/sheet';
+import { cellAddress, columnToLetters, displayedText, lettersToColumn, type Cell } from '../../entities/sheet';
 
 const ШИРИНА_КОЛОНКИ_ПО_УМОЛЧАНИЮ = 110;
 const НАИМЕНЬШАЯ_ШИРИНА_КОЛОНКИ = 40;
 const НАИБОЛЬШАЯ_ШИРИНА_КОЛОНКИ = 600;
 const ЗАПАС_СТРОК = 6;
+/**
+ * Ссылка на ячейку или диапазон в тексте формулы. Разбор здесь простой,
+ * по написанию: подсветка — подсказка глазу, а считает всё равно сервер.
+ */
+const ССЫЛКА_В_ФОРМУЛЕ = /(\$?[A-Za-zА-Яа-я]{1,3}\$?\d{1,7})(?::(\$?[A-Za-z]{1,3}\$?\d{1,7}))?/g;
 const ВЫСОТА_СТРОКИ_ПО_УМОЛЧАНИЮ = 30;
 const ШИРИНА_НОМЕРА_ПО_УМОЛЧАНИЮ = 52;
 
@@ -75,6 +80,35 @@ const режимВыделенияДиапазона = computed(
     () => диапазонВыделения.value.startRow !== диапазонВыделения.value.endRow
         || диапазонВыделения.value.startColumn !== диапазонВыделения.value.endColumn,
 );
+
+/**
+ * Прямоугольники, на которые ссылается набираемая формула.
+ */
+const подсвеченныеОбласти = computed(() => {
+    if (!редактируется.value || !редактируемоеЗначение.value.startsWith('=')) {
+        return [];
+    }
+
+    const области = [];
+
+    for (const совпадение of редактируемоеЗначение.value.matchAll(ССЫЛКА_В_ФОРМУЛЕ)) {
+        const начало = разобратьСсылку(совпадение[1] ?? '');
+        const конец = совпадение[2] === undefined ? начало : разобратьСсылку(совпадение[2]);
+
+        if (начало === null || конец === null) {
+            continue;
+        }
+
+        области.push({
+            startRow: Math.min(начало.row, конец.row),
+            endRow: Math.max(начало.row, конец.row),
+            startColumn: Math.min(начало.column, конец.column),
+            endColumn: Math.max(начало.column, конец.column),
+        });
+    }
+
+    return области;
+});
 
 const режимВвода = computed(() => (редактируемоеЗначение.value.startsWith('=') ? 'text' : 'decimal'));
 
@@ -169,6 +203,31 @@ function ячейка(row: number, column: number): Cell | undefined {
 
 function выбрана(row: number, column: number): boolean {
     return properties.selected.row === row && properties.selected.column === column;
+}
+
+function разобратьСсылку(ссылка: string): { row: number; column: number } | null {
+    const части = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})$/.exec(ссылка);
+
+    if (части === null) {
+        return null;
+    }
+
+    const [, буквы, цифры] = части;
+
+    if (буквы === undefined || цифры === undefined) {
+        return null;
+    }
+
+    return { row: Number(цифры), column: lettersToColumn(буквы) };
+}
+
+function подсвечена(row: number, column: number): boolean {
+    return подсвеченныеОбласти.value.some(
+        (область) => row >= область.startRow
+            && row <= область.endRow
+            && column >= область.startColumn
+            && column <= область.endColumn,
+    );
 }
 
 function вВыделении(row: number, column: number): boolean {
@@ -427,6 +486,7 @@ defineExpose({ начатьРедактирование });
                             :class="{
                                 'сетка__ячейка--выбрана': выбрана(row, column),
                                 'сетка__ячейка--в-выделении': вВыделении(row, column),
+                                'сетка__ячейка--в-формуле': подсвечена(row, column),
                                 'сетка__ячейка--ошибка': ячейка(row, column)?.error != null,
                             }"
                             :style="{ width: `${ширинаКолонки(column)}px`, ...стильЯчейки(ячейка(row, column)) }"

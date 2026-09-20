@@ -57,6 +57,19 @@ export function columnToLetters(column: number): string {
     return letters;
 }
 
+/**
+ * Буквенный адрес колонки в номер: A — это 1, AA — 27.
+ */
+export function lettersToColumn(letters: string): number {
+    let column = 0;
+
+    for (const letter of letters.toUpperCase()) {
+        column = column * 26 + (letter.charCodeAt(0) - 64);
+    }
+
+    return column;
+}
+
 export function cellAddress(row: number, column: number): string {
     return `${columnToLetters(column)}${row}`;
 }

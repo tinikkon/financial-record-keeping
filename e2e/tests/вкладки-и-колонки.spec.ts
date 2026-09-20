@@ -89,3 +89,22 @@ test('выделение с shift красит и стирает сразу не
     await expect(ячейка(page, 'B', 3)).toHaveText('');
     await expect(ячейка(page, 'C', 3)).toHaveText('');
 });
+
+test('ячейки, на которые ссылается набираемая формула, подсвечены', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'B', 3, '120');
+    await вписать(page, 'B', 4, '80');
+
+    await ячейка(page, 'B', 10).click();
+    await page.keyboard.press('F2');
+    await page.locator('.сетка__ввод').fill('=СУММ(B3:B4)');
+
+    await expect(ячейка(page, 'B', 3)).toHaveClass(/сетка__ячейка--в-формуле/);
+    await expect(ячейка(page, 'B', 4)).toHaveClass(/сетка__ячейка--в-формуле/);
+    await expect(ячейка(page, 'B', 5)).not.toHaveClass(/сетка__ячейка--в-формуле/);
+
+    await page.keyboard.press('Escape');
+    await expect(ячейка(page, 'B', 3)).not.toHaveClass(/сетка__ячейка--в-формуле/);
+});

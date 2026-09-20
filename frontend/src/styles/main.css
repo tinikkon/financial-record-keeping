@@ -259,6 +259,11 @@ button {
     box-shadow: inset 0 0 0 100px rgb(26 127 75 / 8%);
 }
 
+.сетка__ячейка--в-формуле {
+    outline: 2px dashed var(--цвет-выделения);
+    outline-offset: -2px;
+}
+
 .сетка__ячейка--ошибка {
     color: var(--цвет-ошибки);
 }
