@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { sheetApi } from '../shared/api/client';
 import { dropRealtimeConnection, subscribeToSheet, whenConnectionStateChanges } from '../shared/api/realtime';
+import { saveFile } from '../shared/lib/files';
 import type { Cell, CellEdit, CellFormat, Sheet, Workbook } from '../entities/sheet';
 
 interface SheetContentResponse {
@@ -240,6 +241,25 @@ export const useSheetStore = defineStore('sheet', () => {
         }
     }
 
+    /**
+     * Отдаёт открытый лист файлом CSV: посчитанными значениями, как на экране.
+     */
+    async function exportActiveSheetToCsv(): Promise<void> {
+        if (activeSheet.value === null) {
+            return;
+        }
+
+        errorMessage.value = null;
+
+        try {
+            const file = await sheetApi.requestFile(`sheets/${activeSheet.value.id}/csv`);
+
+            saveFile(file, `${activeSheet.value.name}.csv`);
+        } catch (error) {
+            errorMessage.value = error instanceof Error ? error.message : 'Не удалось выгрузить лист';
+        }
+    }
+
     async function reloadActiveSheet(): Promise<void> {
         if (activeSheet.value === null) {
             return;
@@ -295,6 +315,7 @@ export const useSheetStore = defineStore('sheet', () => {
         applyEdits,
         applyFormat,
         applyIncomingPacket,
+        exportActiveSheetToCsv,
         restoreToVersion,
         reloadActiveSheet,
         reset,

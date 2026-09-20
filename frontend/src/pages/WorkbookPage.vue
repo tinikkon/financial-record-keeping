@@ -90,6 +90,9 @@ async function выйти(): Promise<void> {
                 История ячейки
             </button>
             <button type="button" class="полоса-состояния__действие" @click="показатьСводку">Сводка</button>
+            <button type="button" class="полоса-состояния__действие" @click="sheet.exportActiveSheetToCsv">
+                Выгрузить CSV
+            </button>
             <span v-if="authentication.user !== null">{{ authentication.user.name }}</span>
             <button type="button" class="полоса-состояния__выход" @click="выйти">Выйти</button>
         </div>

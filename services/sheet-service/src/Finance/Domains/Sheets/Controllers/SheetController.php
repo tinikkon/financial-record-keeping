@@ -10,6 +10,7 @@ use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
 use Finance\Domains\Sheets\Actions\CreateSheetAction;
 use Finance\Domains\Sheets\Actions\DeleteSheetAction;
 use Finance\Domains\Sheets\Actions\DuplicateSheetAction;
+use Finance\Domains\Sheets\Actions\ExportSheetToCsvAction;
 use Finance\Domains\Sheets\Actions\FindAvailableSheetAction;
 use Finance\Domains\Sheets\Actions\RenameSheetAction;
 use Finance\Domains\Sheets\Actions\ReorderSheetsAction;
@@ -26,6 +27,7 @@ use Finance\Domains\Workbooks\Actions\FindAvailableWorkbookAction;
 use Finance\Domains\Workbooks\Exceptions\WorkbookNotAvailableException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 final readonly class SheetController
 {
@@ -159,5 +161,34 @@ final readonly class SheetController
             ->all();
 
         return new JsonResponse(['sheets' => $ordered]);
+    }
+
+    /**
+     * Лист файлом CSV.
+     *
+     * Имя файла уходит в заголовок дважды: обычным полем для старых программ
+     * и полем с кодировкой — иначе кириллица в названии месяца превращается
+     * в мусор.
+     *
+     * @throws InvalidAccessTokenException
+     * @throws SheetNotAvailableException
+     */
+    public function export(
+        Request $request,
+        string $sheetIdentifier,
+        FindAvailableSheetAction $findSheet,
+        ExportSheetToCsvAction $exportToCsv,
+    ): Response {
+        $sheet = $findSheet->execute($sheetIdentifier, CurrentUser::identifier($request));
+        $fileName = $sheet->name . '.csv';
+
+        return new Response($exportToCsv->execute($sheet), Response::HTTP_OK, [
+            'Content-Type' => 'text/csv; charset=utf-8',
+            'Content-Disposition' => sprintf(
+                'attachment; filename="%s"; filename*=UTF-8\'\'%s',
+                preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName),
+                rawurlencode($fileName),
+            ),
+        ]);
     }
 }

@@ -52,6 +52,27 @@ export class ApiClient {
         return this.toResult<TResponse>(await this.send(path, options));
     }
 
+    /**
+     * Файл с тем же обновлением истёкшего токена, что и у обычного запроса.
+     */
+    public async requestFile(path: string): Promise<Blob> {
+        const response = await this.send(path, {});
+
+        if (response.status !== 401) {
+            return this.toFile(response);
+        }
+
+        const refreshed = await this.refreshTokens();
+
+        if (!refreshed) {
+            this.onAuthenticationLost?.();
+
+            throw new ApiError('Требуется вход', 401);
+        }
+
+        return this.toFile(await this.send(path, {}));
+    }
+
     private async send(path: string, options: RequestOptions): Promise<Response> {
         const headers: Record<string, string> = {
             Accept: 'application/json',
@@ -88,6 +109,14 @@ export class ApiClient {
                 : 'Не удалось выполнить запрос';
 
         throw new ApiError(message, response.status);
+    }
+
+    private async toFile(response: Response): Promise<Blob> {
+        if (!response.ok) {
+            throw new ApiError('Не удалось выгрузить файл', response.status);
+        }
+
+        return response.blob();
     }
 
     private async refreshTokens(): Promise<boolean> {

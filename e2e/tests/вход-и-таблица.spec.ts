@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { вписать, войти, новыйМесяц, ячейка } from './вспомогательное';
 
@@ -62,4 +63,63 @@ test('связь с сервером устанавливается', async ({ p
     await войти(page);
 
     await expect(page.locator('.полоса-состояния')).toContainText('Изменения приходят сразу', { timeout: 20000 });
+});
+
+test('текст доходит до ячейки целиком', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'A', 2, 'назначение');
+    await вписать(page, 'B', 2, 'расход, бел');
+
+    await expect(ячейка(page, 'A', 2)).toHaveText('назначение');
+    await expect(ячейка(page, 'B', 2)).toHaveText('расход, бел');
+});
+
+test('быстрый набор без открытой правки не теряет начало строки', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    // Набор идёт прямо по выбранной ячейке, как в Excel: первый же символ
+    // открывает правку, и обогнать её появление нельзя.
+    await ячейка(page, 'A', 2).click();
+    await page.keyboard.type('rashod, bel');
+    await page.keyboard.press('Enter');
+
+    await expect(ячейка(page, 'A', 2)).toHaveText('rashod, bel');
+});
+
+test('открытая и не тронутая ячейка сохраняет содержимое', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'B', 3, '120');
+
+    // Правка открывается и бросается щелчком по соседке: пустое поле не должно
+    // записаться поверх числа.
+    await ячейка(page, 'B', 3).dblclick();
+    await ячейка(page, 'C', 5).click();
+
+    await expect(ячейка(page, 'B', 3)).toHaveText('120');
+});
+
+test('лист выгружается в CSV', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'A', 2, 'Продукты');
+    await вписать(page, 'B', 2, '248.60');
+
+    const [файл] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('button', { name: 'Выгрузить CSV' }).click(),
+    ]);
+
+    // Имя файла здесь не проверяется: Chromium из образа отдаёт для содержимого
+    // из памяти имя «download», что бы ни стояло в ссылке. Заголовок с именем
+    // проверяется тестом сервиса таблиц.
+    const путь = await файл.path();
+    const содержимое = await readFile(путь, 'utf8');
+
+    expect(содержимое).toContain('Продукты;248,6');
 });
