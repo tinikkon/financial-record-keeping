@@ -41,6 +41,14 @@ async function скопироватьМесяц(название: string): Promi
     await sheet.duplicateSheet(название);
 }
 
+async function переименоватьМесяц(sheetIdentifier: string, название: string): Promise<void> {
+    await sheet.renameSheet(sheetIdentifier, название);
+}
+
+async function удалитьМесяц(sheetIdentifier: string): Promise<void> {
+    await sheet.deleteSheet(sheetIdentifier);
+}
+
 async function оформить(изменения: CellFormat): Promise<void> {
     await sheet.applyFormat(выбранная.value.row, выбранная.value.column, изменения);
 }
@@ -130,6 +138,7 @@ async function выйти(): Promise<void> {
             :selected="выбранная"
             @select="выбранная = $event"
             @commit="сохранитьЯчейку"
+            @ширина-колонки="sheet.updateColumnWidth"
         />
 
         <CellHistoryPanel @вернуть="вернутьКВерсии" />
@@ -141,6 +150,8 @@ async function выйти(): Promise<void> {
             @open="sheet.openSheet"
             @добавить-месяц="добавитьМесяц"
             @скопировать-месяц="скопироватьМесяц"
+            @переименовать-месяц="переименоватьМесяц"
+            @удалить-месяц="удалитьМесяц"
         />
     </div>
 </template>

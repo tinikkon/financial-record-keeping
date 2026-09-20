@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { cellAddress, columnToLetters, displayedText, type Cell } from '../../entities/sheet';
 
 const ШИРИНА_КОЛОНКИ_ПО_УМОЛЧАНИЮ = 110;
+const НАИМЕНЬШАЯ_ШИРИНА_КОЛОНКИ = 40;
+const НАИБОЛЬШАЯ_ШИРИНА_КОЛОНКИ = 600;
 const ЗАПАС_СТРОК = 6;
 const ВЫСОТА_СТРОКИ_ПО_УМОЛЧАНИЮ = 30;
 const ШИРИНА_НОМЕРА_ПО_УМОЛЧАНИЮ = 52;
@@ -18,6 +20,7 @@ const properties = defineProps<{
 const emit = defineEmits<{
     select: [position: { row: number; column: number }];
     commit: [edit: { row: number; column: number; input: string | null }];
+    'ширина-колонки': [колонка: string, ширина: number];
 }>();
 
 const корень = ref<HTMLElement | null>(null);
@@ -35,6 +38,10 @@ const редактируемоеЗначение = ref('');
 // Содержимое ячейки на момент начала правки: если человек ничего не изменил,
 // ячейку трогать не за что.
 const исходноеЗначение = ref('');
+// Ширина, которую колонка показывает прямо во время перетаскивания: на сервер
+// она уходит один раз, когда границу отпустили.
+const растягиваемаяКолонка = ref<{ номер: number; ширина: number } | null>(null);
+const началоРастягивания = { отX: 0, отШирины: 0 };
 
 const колонки = computed(() => Array.from({ length: properties.columnCount }, (_, index) => index + 1));
 
@@ -76,7 +83,57 @@ const положениеПоля = computed(() => {
 });
 
 function ширинаКолонки(column: number): number {
+    const растягиваемая = растягиваемаяКолонка.value;
+
+    if (растягиваемая !== null && растягиваемая.номер === column) {
+        return растягиваемая.ширина;
+    }
+
     return properties.columnWidths[columnToLetters(column)] ?? ШИРИНА_КОЛОНКИ_ПО_УМОЛЧАНИЮ;
+}
+
+/**
+ * Ширина колонки тянется мышью за правый край заголовка.
+ *
+ * Слежение вешается на весь документ: указатель во время перетаскивания уходит
+ * далеко за пределы узкой полоски, за которую взялись.
+ */
+function начатьРастягивание(column: number, событие: MouseEvent): void {
+    растягиваемаяКолонка.value = { номер: column, ширина: ширинаКолонки(column) };
+    началоРастягивания.отX = событие.clientX;
+    началоРастягивания.отШирины = ширинаКолонки(column);
+
+    document.addEventListener('mousemove', приРастягивании);
+    document.addEventListener('mouseup', закончитьРастягивание);
+}
+
+function приРастягивании(событие: MouseEvent): void {
+    const растягиваемая = растягиваемаяКолонка.value;
+
+    if (растягиваемая === null) {
+        return;
+    }
+
+    const ширина = началоРастягивания.отШирины + (событие.clientX - началоРастягивания.отX);
+
+    растягиваемаяКолонка.value = {
+        номер: растягиваемая.номер,
+        ширина: Math.min(Math.max(НАИМЕНЬШАЯ_ШИРИНА_КОЛОНКИ, Math.round(ширина)), НАИБОЛЬШАЯ_ШИРИНА_КОЛОНКИ),
+    };
+}
+
+function закончитьРастягивание(): void {
+    document.removeEventListener('mousemove', приРастягивании);
+    document.removeEventListener('mouseup', закончитьРастягивание);
+
+    const растягиваемая = растягиваемаяКолонка.value;
+    растягиваемаяКолонка.value = null;
+
+    if (растягиваемая === null) {
+        return;
+    }
+
+    emit('ширина-колонки', columnToLetters(растягиваемая.номер), растягиваемая.ширина);
 }
 
 function отступКолонки(column: number): number {
@@ -268,6 +325,11 @@ watch(
     () => отменитьРедактирование(),
 );
 
+onUnmounted(() => {
+    document.removeEventListener('mousemove', приРастягивании);
+    document.removeEventListener('mouseup', закончитьРастягивание);
+});
+
 onMounted(() => {
     // Размеры заданы переменными оформления и на телефоне другие, поэтому
     // берутся оттуда: сетка и поле ввода должны считать их одинаково.
@@ -296,6 +358,11 @@ defineExpose({ начатьРедактирование });
                 :style="{ width: `${ширинаКолонки(column)}px` }"
             >
                 {{ columnToLetters(column) }}
+                <span
+                    class="сетка__граница-колонки"
+                    :aria-label="`Ширина колонки ${columnToLetters(column)}`"
+                    @mousedown.prevent="начатьРастягивание(column, $event)"
+                ></span>
             </div>
         </div>
 

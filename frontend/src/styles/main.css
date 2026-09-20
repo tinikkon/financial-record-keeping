@@ -182,12 +182,22 @@ button {
 }
 
 .сетка__заголовок {
+    position: relative;
     flex: 0 0 auto;
     padding: 6px 0;
     border-right: 1px solid var(--цвет-границы);
     text-align: center;
     font-weight: 600;
     color: var(--цвет-приглушённый);
+}
+
+.сетка__граница-колонки {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
 }
 
 .сетка__область {
@@ -286,6 +296,11 @@ button {
     border: 1px solid var(--цвет-выделения);
     border-radius: 6px;
     font: inherit;
+}
+
+.вкладки__действие--опасное {
+    border-color: var(--цвет-ошибки);
+    color: var(--цвет-ошибки);
 }
 
 .вкладки__вкладка--активная {
@@ -413,6 +428,10 @@ button {
 .оформление__заливка--выбрана {
     outline: 2px solid var(--цвет-выделения);
     outline-offset: 1px;
+}
+
+.оформление__кнопка--курсив {
+    font-style: italic;
 }
 
 .оформление__разделитель {

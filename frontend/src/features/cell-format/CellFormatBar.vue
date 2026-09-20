@@ -13,13 +13,31 @@ const ЗАЛИВКИ: ReadonlyArray<{ цвет: string | null; подпись: s
     { цвет: '#DCE7FB', подпись: 'Синяя' },
 ];
 
-defineProps<{
+/**
+ * Выравнивание задаётся явно, когда не устраивает обычное: текст жмётся влево,
+ * число — вправо.
+ */
+const ВЫРАВНИВАНИЯ: ReadonlyArray<{ значение: 'left' | 'center' | 'right'; подпись: string; знак: string }> = [
+    { значение: 'left', подпись: 'Прижать влево', знак: '⇤' },
+    { значение: 'center', подпись: 'По центру', знак: '↔' },
+    { значение: 'right', подпись: 'Прижать вправо', знак: '⇥' },
+];
+
+const properties = defineProps<{
     format: CellFormat;
 }>();
 
 const emit = defineEmits<{
     изменить: [изменения: CellFormat];
 }>();
+
+function переключитьКурсив(): void {
+    emit('изменить', { italic: properties.format.italic === true ? undefined : true });
+}
+
+function выбратьВыравнивание(значение: 'left' | 'center' | 'right'): void {
+    emit('изменить', { align: properties.format.align === значение ? undefined : значение });
+}
 </script>
 
 <template>
@@ -33,6 +51,32 @@ const emit = defineEmits<{
             @click="emit('изменить', { bold: format.bold === true ? undefined : true })"
         >
             Ж
+        </button>
+
+        <button
+            type="button"
+            class="оформление__кнопка оформление__кнопка--курсив"
+            :class="{ 'оформление__кнопка--включена': format.italic === true }"
+            aria-label="Курсив"
+            title="Курсив"
+            @click="переключитьКурсив"
+        >
+            К
+        </button>
+
+        <span class="оформление__разделитель"></span>
+
+        <button
+            v-for="выравнивание in ВЫРАВНИВАНИЯ"
+            :key="выравнивание.значение"
+            type="button"
+            class="оформление__кнопка"
+            :class="{ 'оформление__кнопка--включена': format.align === выравнивание.значение }"
+            :aria-label="выравнивание.подпись"
+            :title="выравнивание.подпись"
+            @click="выбратьВыравнивание(выравнивание.значение)"
+        >
+            {{ выравнивание.знак }}
         </button>
 
         <span class="оформление__разделитель"></span>

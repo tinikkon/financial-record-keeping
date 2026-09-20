@@ -132,6 +132,87 @@ export const useSheetStore = defineStore('sheet', () => {
         await openSheet(created.id);
     }
 
+    /**
+     * Переименовывает месяц.
+     */
+    async function renameSheet(sheetIdentifier: string, name: string): Promise<void> {
+        try {
+            const updated = await sheetApi.request<Sheet>(`sheets/${sheetIdentifier}`, {
+                method: 'PATCH',
+                body: { name },
+            });
+
+            replaceSheet(updated);
+        } catch (error) {
+            errorMessage.value = error instanceof Error ? error.message : 'Не удалось переименовать месяц';
+        }
+    }
+
+    /**
+     * Удаляет месяц вместе с его ячейками и открывает соседний.
+     */
+    async function deleteSheet(sheetIdentifier: string): Promise<void> {
+        try {
+            await sheetApi.request(`sheets/${sheetIdentifier}`, { method: 'DELETE' });
+        } catch (error) {
+            errorMessage.value = error instanceof Error ? error.message : 'Не удалось удалить месяц';
+
+            return;
+        }
+
+        sheets.value = sheets.value.filter((sheet) => sheet.id !== sheetIdentifier);
+
+        if (activeSheet.value?.id !== sheetIdentifier) {
+            return;
+        }
+
+        const next = sheets.value[0];
+
+        if (next === undefined) {
+            activeSheet.value = null;
+            cells.value = new Map();
+
+            return;
+        }
+
+        await openSheet(next.id);
+    }
+
+    /**
+     * Меняет ширину одной колонки, не трогая остальные.
+     */
+    async function updateColumnWidth(column: string, width: number): Promise<void> {
+        if (activeSheet.value === null) {
+            return;
+        }
+
+        const widths = { ...activeSheet.value.columnWidths, [column]: width };
+        activeSheet.value = { ...activeSheet.value, columnWidths: widths };
+
+        try {
+            const updated = await sheetApi.request<Sheet>(`sheets/${activeSheet.value.id}`, {
+                method: 'PATCH',
+                body: { columnWidths: widths },
+            });
+
+            replaceSheet(updated);
+        } catch (error) {
+            errorMessage.value = error instanceof Error ? error.message : 'Не удалось изменить ширину';
+
+            await reloadActiveSheet();
+        }
+    }
+
+    function replaceSheet(updated: Sheet): void {
+        sheets.value = sheets.value.map((sheet) => (sheet.id === updated.id ? updated : sheet));
+
+        if (activeSheet.value?.id === updated.id) {
+            // Версия листа приходит из описания и может отставать от применённых
+            // правок, поэтому берётся большая из двух.
+            activeSheet.value = { ...updated, version: Math.max(updated.version, activeSheet.value.version) };
+        }
+    }
+
     async function applyEdits(edits: CellEdit[]): Promise<void> {
         if (activeSheet.value === null) {
             return;
@@ -356,6 +437,9 @@ export const useSheetStore = defineStore('sheet', () => {
         exportActiveSheetToCsv,
         insertRow,
         deleteRow,
+        renameSheet,
+        deleteSheet,
+        updateColumnWidth,
         restoreToVersion,
         reloadActiveSheet,
         reset,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import type { Sheet } from '../../entities/sheet';
 import { currentMonthName } from '../../stores/sheet';
 
@@ -18,17 +18,41 @@ const emit = defineEmits<{
     open: [sheetIdentifier: string];
     'добавить-месяц': [название: string];
     'скопировать-месяц': [название: string];
+    'переименовать-месяц': [sheetIdentifier: string, название: string];
+    'удалить-месяц': [sheetIdentifier: string];
 }>();
 
-type Способ = 'новый' | 'копия';
+type Способ = 'новый' | 'копия' | 'переименование';
 
 const создаваемыйСпособ = ref<Способ | null>(null);
 const новоеНазвание = ref('');
+const переименовываемый = ref<string | null>(null);
 const полеНазвания = ref<HTMLInputElement | null>(null);
+// Удаление месяца спрашивает подтверждение прямо на кнопке: системное окно
+// перекрывает страницу и на телефоне выглядит чужеродно.
+const подтверждаемоеУдаление = ref<string | null>(null);
+
+const подписьПоля = computed(() => {
+    if (создаваемыйСпособ.value === 'переименование') {
+        return 'Новое название месяца';
+    }
+
+    return создаваемыйСпособ.value === 'новый' ? 'Название нового месяца' : 'Название месяца-копии';
+});
 
 function начатьСоздание(способ: Способ): void {
+    подтверждаемоеУдаление.value = null;
     создаваемыйСпособ.value = способ;
     новоеНазвание.value = currentMonthName();
+
+    void nextTick(() => полеНазвания.value?.select());
+}
+
+function начатьПереименование(sheet: Sheet): void {
+    подтверждаемоеУдаление.value = null;
+    создаваемыйСпособ.value = 'переименование';
+    переименовываемый.value = sheet.id;
+    новоеНазвание.value = sheet.name;
 
     void nextTick(() => полеНазвания.value?.select());
 }
@@ -36,10 +60,19 @@ function начатьСоздание(способ: Способ): void {
 function подтвердить(): void {
     const название = новоеНазвание.value.trim();
     const способ = создаваемыйСпособ.value;
+    const лист = переименовываемый.value;
 
     отменить();
 
     if (название === '' || способ === null) {
+        return;
+    }
+
+    if (способ === 'переименование') {
+        if (лист !== null) {
+            emit('переименовать-месяц', лист, название);
+        }
+
         return;
     }
 
@@ -54,7 +87,27 @@ function подтвердить(): void {
 
 function отменить(): void {
     создаваемыйСпособ.value = null;
+    переименовываемый.value = null;
     новоеНазвание.value = '';
+}
+
+/**
+ * Первый щелчок спрашивает, второй удаляет.
+ */
+function удалить(sheetIdentifier: string): void {
+    if (подтверждаемоеУдаление.value !== sheetIdentifier) {
+        подтверждаемоеУдаление.value = sheetIdentifier;
+
+        return;
+    }
+
+    подтверждаемоеУдаление.value = null;
+    emit('удалить-месяц', sheetIdentifier);
+}
+
+function открыть(sheetIdentifier: string): void {
+    подтверждаемоеУдаление.value = null;
+    emit('open', sheetIdentifier);
 }
 </script>
 
@@ -66,7 +119,8 @@ function отменить(): void {
             type="button"
             class="вкладки__вкладка"
             :class="{ 'вкладки__вкладка--активная': sheet.id === activeSheetId }"
-            @click="emit('open', sheet.id)"
+            @click="открыть(sheet.id)"
+            @dblclick="начатьПереименование(sheet)"
         >
             {{ sheet.name }}
         </button>
@@ -78,7 +132,7 @@ function отменить(): void {
             ref="полеНазвания"
             v-model="новоеНазвание"
             class="вкладки__название"
-            :aria-label="создаваемыйСпособ === 'новый' ? 'Название нового месяца' : 'Название месяца-копии'"
+            :aria-label="подписьПоля"
             @keydown.enter.prevent="подтвердить"
             @keydown.esc.prevent="отменить"
             @blur="отменить"
@@ -102,6 +156,17 @@ function отменить(): void {
                 @click="начатьСоздание('копия')"
             >
                 ⧉
+            </button>
+            <button
+                v-if="activeSheetId !== null"
+                type="button"
+                class="вкладки__действие"
+                :class="{ 'вкладки__действие--опасное': подтверждаемоеУдаление === activeSheetId }"
+                :title="подтверждаемоеУдаление === activeSheetId ? 'Точно удалить месяц?' : 'Удалить открытый месяц'"
+                :aria-label="подтверждаемоеУдаление === activeSheetId ? 'Точно удалить месяц?' : 'Удалить открытый месяц'"
+                @click="удалить(activeSheetId)"
+            >
+                {{ подтверждаемоеУдаление === activeSheetId ? 'точно?' : '✕' }}
             </button>
         </template>
     </div>
