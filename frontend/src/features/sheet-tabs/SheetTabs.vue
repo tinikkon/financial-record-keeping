@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type { Sheet } from '../../entities/sheet';
 import { currentMonthName } from '../../stores/sheet';
 
-defineProps<{
+const properties = defineProps<{
     sheets: Sheet[];
     activeSheetId: string | null;
 }>();
@@ -28,6 +28,7 @@ const создаваемыйСпособ = ref<Способ | null>(null);
 const новоеНазвание = ref('');
 const переименовываемый = ref<string | null>(null);
 const полеНазвания = ref<HTMLInputElement | null>(null);
+const полосаВкладок = ref<HTMLElement | null>(null);
 // Удаление месяца спрашивает подтверждение прямо на кнопке: системное окно
 // перекрывает страницу и на телефоне выглядит чужеродно.
 const подтверждаемоеУдаление = ref<string | null>(null);
@@ -105,6 +106,22 @@ function удалить(sheetIdentifier: string): void {
     emit('удалить-месяц', sheetIdentifier);
 }
 
+/**
+ * Открытая вкладка подтягивается в видимую часть: месяцы добавляются в конец,
+ * и на узком экране свежий оказывается за краем полосы.
+ */
+watch(
+    () => properties.activeSheetId,
+    () => {
+        void nextTick(() => {
+            полосаВкладок.value
+                ?.querySelector('.вкладки__вкладка--активная')
+                ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        });
+    },
+    { immediate: true },
+);
+
 function открыть(sheetIdentifier: string): void {
     подтверждаемоеУдаление.value = null;
     emit('open', sheetIdentifier);
@@ -112,7 +129,7 @@ function открыть(sheetIdentifier: string): void {
 </script>
 
 <template>
-    <div class="вкладки">
+    <div ref="полосаВкладок" class="вкладки">
         <button
             v-for="sheet in sheets"
             :key="sheet.id"
