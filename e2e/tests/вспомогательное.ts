@@ -23,9 +23,17 @@ export function ячейка(page: Page, колонка: string, строка: n
         .nth(номерКолонки - 1);
 }
 
+/**
+ * Вписывает значение в ячейку.
+ *
+ * Правка открывается отдельным нажатием: Playwright не умеет посылать нажатия
+ * клавиш для кириллицы — он вставляет такой текст прямо в поле, уже получившее
+ * фокус. Набор без открытой правки проверяется отдельно, латиницей.
+ */
 export async function вписать(page: Page, колонка: string, строка: number, значение: string): Promise<void> {
     await ячейка(page, колонка, строка).click();
-    await page.keyboard.type(значение);
+    await page.keyboard.press('F2');
+    await page.locator('.сетка__ввод').fill(значение);
     await page.keyboard.press('Enter');
 }
 

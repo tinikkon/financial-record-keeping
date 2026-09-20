@@ -74,8 +74,8 @@ test-frontend: ## Тесты фронтенда
 .PHONY: test-e2e
 test-e2e: ## Сквозные тесты в браузере
 	docker build -q -t finance-e2e:latest e2e
-	docker run --rm --network host -v "$$(pwd)/e2e":/e2e -w /e2e \
-		--user $(UID):$(GID) -e HOME=/tmp -e СНИМКИ="$$(СНИМКИ)" \
+	docker run --rm --network host -v "$$(pwd)/e2e":/e2e -v "$$(pwd)/docs":/docs -w /e2e \
+		--user $(UID):$(GID) -e HOME=/tmp -e SCREENSHOTS="$(SCREENSHOTS)" \
 		finance-e2e:latest npx playwright test
 
 .PHONY: analyse
