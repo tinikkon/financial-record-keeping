@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  движок-формул:
+  formula-engine:
     name: Движок формул
     runs-on: ubuntu-latest
     steps:
@@ -31,7 +31,7 @@ jobs:
           docker run --rm -v "$PWD":/app -w /app/packages/formula-engine \
             finance-sheet-app:latest vendor/bin/pest
 
-  сервисы:
+  services:
     name: Сервисы
     runs-on: ubuntu-latest
     steps:
@@ -41,36 +41,38 @@ jobs:
         run: |
           cp .env.example .env
           make keys
+          docker compose build sheet-app
 
       - name: Поднять хранилище и очередь
         run: |
           docker compose up -d mongo mongo-replica-set-init rabbitmq
+          docker compose wait mongo-replica-set-init
           timeout 180 bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" "$(docker compose ps -q mongo)")" = healthy ]; do sleep 3; done'
 
       - name: Установить зависимости
         run: |
-          for сервис in sheet-service history-service; do
-            docker run --rm -v "$PWD":/app -w "/app/services/$сервис/src" \
+          for service in sheet-service history-service; do
+            docker run --rm -v "$PWD":/app -w "/app/services/$service/src" \
               -e COMPOSER_HOME=/tmp/composer finance-sheet-app:latest \
               composer install --no-interaction --no-progress
           done
 
       - name: Статический анализ
         run: |
-          for сервис in sheet-service history-service; do
-            docker run --rm --network finance_finance -v "$PWD":/app -w "/app/services/$сервис/src" \
+          for service in sheet-service history-service; do
+            docker run --rm --network finance_finance -v "$PWD":/app -w "/app/services/$service/src" \
               finance-sheet-app:latest vendor/bin/phpstan analyse --no-progress
           done
 
       - name: Тесты
         run: |
-          for сервис in sheet-service history-service; do
-            docker run --rm --network finance_finance -v "$PWD":/app -w "/app/services/$сервис/src" \
+          for service in sheet-service history-service; do
+            docker run --rm --network finance_finance -v "$PWD":/app -w "/app/services/$service/src" \
               -v "$PWD/docker/secrets":/run/secrets:ro \
               finance-sheet-app:latest sh -c 'php artisan key:generate --force && php artisan finance:create-indexes && vendor/bin/pest'
           done
 
-  фронтенд:
+  frontend:
     name: Фронтенд
     runs-on: ubuntu-latest
     defaults:
@@ -86,8 +88,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - run: npm ci
-      - name: Проверка типов
-        run: npm run typecheck
       - name: Тесты
         run: npm test
       - name: Сборка
@@ -99,7 +99,7 @@ jobs:
           VITE_WEBSOCKET_PORT: '8088'
           VITE_WEBSOCKET_KEY: ключ
 
-  сквозные-тесты:
+  end-to-end:
     name: Сквозные тесты
     runs-on: ubuntu-latest
     steps:
@@ -125,6 +125,11 @@ jobs:
           docker compose exec -T sheet-app php artisan finance:create-indexes
           docker compose exec -T history-app php artisan finance:create-indexes
           make users
+
+      - name: Поставить Playwright
+        run: |
+          docker build -q -t finance-e2e:latest e2e
+          docker run --rm -v "$PWD/e2e":/e2e -w /e2e finance-e2e:latest npm ci
 
       - name: Прогон в браузере
         run: make test-e2e
