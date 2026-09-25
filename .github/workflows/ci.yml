@@ -40,6 +40,8 @@ jobs:
       - name: Подготовить окружение
         run: |
           cp .env.example .env
+          cp services/sheet-service/src/.env.example services/sheet-service/src/.env
+          cp services/history-service/src/.env.example services/history-service/src/.env
           make keys
           env UID="$(id -u)" GID="$(id -g)" docker compose build sheet-app
 
@@ -108,6 +110,8 @@ jobs:
       - name: Подготовить окружение
         run: |
           cp .env.example .env
+          cp services/sheet-service/src/.env.example services/sheet-service/src/.env
+          cp services/history-service/src/.env.example services/history-service/src/.env
           make keys
 
       - name: Собрать образы и поставить зависимости
