@@ -12,7 +12,7 @@ use Finance\FormulaEngine\Lexing\TokenType;
 use Finance\FormulaEngine\Values\CellReference;
 
 /**
- * Переписывает ссылки формулы после вставки или удаления строк.
+ * Переписывает ссылки формулы после вставки или удаления строк или колонок.
  *
  * Правится только текст ссылок, всё остальное остаётся как было: пробелы,
  * названия функций, строки в кавычках. Поэтому формула разбирается на лексемы
@@ -20,79 +20,84 @@ use Finance\FormulaEngine\Values\CellReference;
  * обратно переписали бы формулу целиком, и человек не узнал бы своё.
  *
  * Закрепление знаком доллара на сдвиг не влияет: `$A$5` после вставки строки
- * выше становится `$A$6`. Доллар удерживает ссылку при копировании формулы,
+ * выше становится `$A$6`, а `$B$5` после вставки колонки левее — `$C$5`. Доллар удерживает ссылку при копировании формулы,
  * а не при перестройке листа, и так же ведёт себя Excel.
  */
-final readonly class RowShiftRewriter
+final readonly class ReferenceShiftRewriter
 {
     public function __construct(private Lexer $lexer)
     {
     }
 
     /**
-     * Формула после вставки строк перед указанной.
+     * Формула после вставки строк или колонок перед указанной.
      *
      * @throws SyntaxErrorException
      * @throws InvalidReferenceException
      */
-    public function afterInsert(string $formula, int $atRow, int $count): string
+    public function afterInsert(string $formula, ShiftAxis $axis, int $at, int $count): string
     {
-        $rewritten = $this->rewrite($formula, static function (int $row) use ($atRow, $count): int {
-            return $row >= $atRow ? $row + $count : $row;
+        $rewritten = $this->rewrite($formula, $axis, static function (int $line) use ($at, $count): int {
+            return $line >= $at ? $line + $count : $line;
         });
 
-        // Вставка ничего не ломает: ссылки только отъезжают вниз.
+        // Вставка ничего не ломает: ссылки только отъезжают вниз или вправо.
         return $rewritten ?? $formula;
     }
 
     /**
-     * Формула после удаления строк, начиная с указанной.
+     * Формула после удаления строк или колонок, начиная с указанной.
      *
-     * Ссылка на удалённую строку неисправима: возвращается null, и вызывающему
-     * остаётся заменить содержимое ячейки ошибкой. Диапазон, задетый частично,
-     * просто сжимается — в нём пропали строки, а не опора.
+     * Ссылка на удалённую строку или колонку неисправима: возвращается null,
+     * и вызывающему остаётся заменить содержимое ячейки ошибкой. Диапазон,
+     * задетый частично, просто сжимается — в нём пропали строки, а не опора.
      *
      * @throws SyntaxErrorException
      * @throws InvalidReferenceException
      */
-    public function afterDelete(string $formula, int $fromRow, int $count): ?string
+    public function afterDelete(string $formula, ShiftAxis $axis, int $from, int $count): ?string
     {
-        $afterBand = $fromRow + $count;
+        $afterBand = $from + $count;
 
         return $this->rewrite(
             $formula,
-            static function (int $row) use ($fromRow, $afterBand, $count): ?int {
-                if ($row < $fromRow) {
-                    return $row;
+            $axis,
+            static function (int $line) use ($from, $afterBand, $count): ?int {
+                if ($line < $from) {
+                    return $line;
                 }
 
-                return $row >= $afterBand ? $row - $count : null;
+                return $line >= $afterBand ? $line - $count : null;
             },
-            static function (int $row, bool $isRangeStart) use ($fromRow, $afterBand, $count): int {
-                if ($row < $fromRow) {
-                    return $row;
+            static function (int $line, bool $isRangeStart) use ($from, $afterBand, $count): int {
+                if ($line < $from) {
+                    return $line;
                 }
 
-                if ($row >= $afterBand) {
-                    return $row - $count;
+                if ($line >= $afterBand) {
+                    return $line - $count;
                 }
 
                 // Край диапазона упёрся в удалённое: он придвигается к месту,
-                // где теперь сходятся уцелевшие строки.
-                return $isRangeStart ? $fromRow : $fromRow - 1;
+                // где теперь сходятся уцелевшие строки или колонки.
+                return $isRangeStart ? $from : $from - 1;
             },
         );
     }
 
     /**
-     * @param callable(int): ?int             $shiftRow      новая строка одиночной ссылки
-     * @param (callable(int, bool): ?int)|null $shiftRangeRow новая строка края диапазона
+     * @param callable(int): ?int              $shiftLine      новая координата одиночной ссылки
+     * @param (callable(int, bool): ?int)|null $shiftRangeLine новая координата края диапазона
      *
      * @throws SyntaxErrorException
      * @throws InvalidReferenceException
      */
-    private function rewrite(string $formula, callable $shiftRow, ?callable $shiftRangeRow = null): ?string
-    {
+    private function rewrite(
+        string $formula,
+        ShiftAxis $axis,
+        callable $shiftLine,
+        ?callable $shiftRangeLine = null,
+    ): ?string {
         $tokens = $this->lexer->tokenize($this->body($formula));
         $replacements = [];
 
@@ -102,9 +107,10 @@ final readonly class RowShiftRewriter
             }
 
             $rangeSide = $this->rangeSide($tokens, $position);
-            $shifted = $rangeSide === null || $shiftRangeRow === null
-                ? $shiftRow(CellReference::fromString($token->lexeme)->row)
-                : $shiftRangeRow(CellReference::fromString($token->lexeme)->row, $rangeSide === 'start');
+            $line = $axis->coordinateOf(CellReference::fromString($token->lexeme));
+            $shifted = $rangeSide === null || $shiftRangeLine === null
+                ? $shiftLine($line)
+                : $shiftRangeLine($line, $rangeSide === 'start');
 
             if ($shifted === null || $shifted < 1) {
                 return null;
@@ -117,11 +123,11 @@ final readonly class RowShiftRewriter
 
         // Замены идут с конца: иначе сдвинувшаяся длина строки сбила бы позиции
         // ещё не заменённых лексем.
-        foreach (array_reverse($replacements) as [$token, $row]) {
-            $rewritten = $this->replaced($rewritten, $token, $row);
+        foreach (array_reverse($replacements) as [$token, $line]) {
+            $rewritten = $this->replaced($rewritten, $axis, $token, $line);
         }
 
-        return $this->rangesStillValid($rewritten) ? $rewritten : null;
+        return $this->rangesStillValid($rewritten, $axis) ? $rewritten : null;
     }
 
     /**
@@ -147,15 +153,9 @@ final readonly class RowShiftRewriter
     /**
      * @throws InvalidReferenceException
      */
-    private function replaced(string $formula, Token $token, int $row): string
+    private function replaced(string $formula, ShiftAxis $axis, Token $token, int $line): string
     {
-        $reference = CellReference::fromString($token->lexeme);
-        $updated = new CellReference(
-            column: $reference->column,
-            row: $row,
-            columnFixed: $reference->columnFixed,
-            rowFixed: $reference->rowFixed,
-        );
+        $updated = $axis->withCoordinate(CellReference::fromString($token->lexeme), $line);
 
         // Позиции лексем считаны от тела формулы, а ведущий знак равенства
         // в него не входит.
@@ -165,13 +165,13 @@ final readonly class RowShiftRewriter
     }
 
     /**
-     * Диапазон, у которого конец уехал выше начала, означает, что от него
-     * ничего не осталось.
+     * Диапазон, у которого конец уехал выше или левее начала, означает,
+     * что от него ничего не осталось.
      *
      * @throws SyntaxErrorException
      * @throws InvalidReferenceException
      */
-    private function rangesStillValid(string $formula): bool
+    private function rangesStillValid(string $formula, ShiftAxis $axis): bool
     {
         $tokens = $this->lexer->tokenize($this->body($formula));
 
@@ -189,7 +189,7 @@ final readonly class RowShiftRewriter
             $start = CellReference::fromString($token->lexeme);
             $end = CellReference::fromString($endToken->lexeme);
 
-            if ($end->row < $start->row) {
+            if ($axis->coordinateOf($end) < $axis->coordinateOf($start)) {
                 return false;
             }
         }

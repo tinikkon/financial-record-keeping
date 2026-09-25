@@ -154,3 +154,34 @@ test('удаление строки поднимает нижние и пере�
     await expect(ячейка(page, 'B', 4)).toHaveText('');
     await expect(ячейка(page, 'B', 9)).toHaveText('120');
 });
+
+test('вставка колонки сдвигает содержимое вправо вместе с формулой', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'B', 2, '120');
+    await вписать(page, 'C', 2, '80');
+    await вписать(page, 'E', 2, '=СУММ(B2:C2)');
+
+    await ячейка(page, 'C', 5).click();
+    await page.getByRole('button', { name: 'Вставить колонку' }).click();
+
+    await expect(ячейка(page, 'D', 2)).toHaveText('80');
+    await expect(ячейка(page, 'C', 2)).toHaveText('');
+    await expect(ячейка(page, 'F', 2)).toHaveText('200');
+});
+
+test('удаление колонки сдвигает правые и пересчитывает итог', async ({ page }) => {
+    await войти(page);
+    await новыйМесяц(page);
+
+    await вписать(page, 'B', 2, '120');
+    await вписать(page, 'C', 2, '80');
+    await вписать(page, 'E', 2, '=СУММ(B2:D2)');
+
+    await ячейка(page, 'C', 5).click();
+    await page.getByRole('button', { name: 'Удалить колонку' }).click();
+
+    await expect(ячейка(page, 'C', 2)).toHaveText('');
+    await expect(ячейка(page, 'D', 2)).toHaveText('120');
+});

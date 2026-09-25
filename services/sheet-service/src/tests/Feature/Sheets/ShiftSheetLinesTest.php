@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Finance\Domains\Sheets\Models\SheetModel;
+use Finance\FormulaEngine\Values\CellReference;
 use Finance\FormulaEngine\Values\FormulaError;
 
 test('вставка строки переселяет содержимое вниз', function (): void {
@@ -110,4 +112,71 @@ test('содержимое не выталкивается за последню
         ->json();
 
     expect(valueAt($content, 'A200'))->toBe('Итого');
+});
+
+test('вставка колонки переселяет содержимое вправо и сдвигает ссылки', function (): void {
+    $context = sheetContext();
+
+    writeCells($context, ['A1' => 'Статья', 'B1' => '120', 'C1' => '80', 'E1' => '=СУММ(B1:C1)']);
+
+    test()->withToken($context['token'])
+        ->postJson("/api/sheets/{$context['sheet']}/columns/insert", ['column' => 2])
+        ->assertOk();
+
+    $content = test()->withToken($context['token'])
+        ->getJson("/api/sheets/{$context['sheet']}/cells")
+        ->json();
+
+    expect(valueAt($content, 'A1'))->toBe('Статья')
+        ->and(valueAt($content, 'B1'))->toBeNull()
+        ->and(valueAt($content, 'C1'))->toBe('120')
+        ->and(inputAt($content, 'F1'))->toBe('=СУММ(C1:D1)')
+        ->and(valueAt($content, 'F1'))->toBe('200');
+});
+
+test('удаление колонки сдвигает правые и ломает ссылку на удалённую', function (): void {
+    $context = sheetContext();
+
+    writeCells($context, ['B1' => '120', 'C1' => '80', 'D1' => '=C1*2', 'A5' => '=B1+1']);
+
+    test()->withToken($context['token'])
+        ->postJson("/api/sheets/{$context['sheet']}/columns/delete", ['column' => 2])
+        ->assertOk();
+
+    $content = test()->withToken($context['token'])
+        ->getJson("/api/sheets/{$context['sheet']}/cells")
+        ->json();
+
+    expect(valueAt($content, 'B1'))->toBe('80')
+        ->and(inputAt($content, 'C1'))->toBe('=B1*2')
+        ->and(valueAt($content, 'C1'))->toBe('160')
+        ->and(valueAt($content, 'A5'))->toBe(FormulaError::BrokenReference->value);
+});
+
+test('ширины переезжают вместе с колонками', function (): void {
+    $context = sheetContext();
+
+    test()->withToken($context['token'])
+        ->patchJson("/api/sheets/{$context['sheet']}", ['columnWidths' => ['A' => 200, 'B' => 90, 'C' => 150]])
+        ->assertOk();
+
+    test()->withToken($context['token'])
+        ->postJson("/api/sheets/{$context['sheet']}/columns/delete", ['column' => 2])
+        ->assertOk()
+        ->assertJsonPath('columnWidths', ['A' => 200, 'B' => 150]);
+
+    test()->withToken($context['token'])
+        ->postJson("/api/sheets/{$context['sheet']}/columns/insert", ['column' => 1])
+        ->assertOk()
+        ->assertJsonPath('columnWidths', ['B' => 200, 'C' => 150]);
+});
+
+test('содержимое не выталкивается за последнюю колонку', function (): void {
+    $context = sheetContext();
+
+    writeCells($context, [CellReference::columnToLetters(SheetModel::DEFAULT_COLUMN_COUNT) . '1' => 'Итого']);
+
+    test()->withToken($context['token'])
+        ->postJson("/api/sheets/{$context['sheet']}/columns/insert", ['column' => 1])
+        ->assertStatus(409);
 });

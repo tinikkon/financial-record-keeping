@@ -12,16 +12,18 @@ use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Cells\Exceptions\CellNotSavedException;
 use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
 use Finance\Domains\Cells\Models\CellModel;
-use Finance\Domains\Sheets\Exceptions\RowsWouldOverflowSheetException;
+use Finance\Domains\Sheets\Exceptions\CellsWouldOverflowSheetException;
 use Finance\Domains\Sheets\Models\SheetModel;
-use Finance\FormulaEngine\Editing\RowShiftRewriter;
+use Finance\Domains\Sheets\Contracts\SheetRepositoryContract;
+use Finance\FormulaEngine\Editing\ReferenceShiftRewriter;
+use Finance\FormulaEngine\Editing\ShiftAxis;
 use Finance\FormulaEngine\Exceptions\InvalidReferenceException;
 use Finance\FormulaEngine\Exceptions\SyntaxErrorException;
 use Finance\FormulaEngine\Values\CellReference;
 use Finance\FormulaEngine\Values\FormulaError;
 
 /**
- * Вставляет и удаляет строки, переселяя содержимое и переписывая ссылки.
+ * Вставляет и удаляет строки или колонки, переселяя содержимое и переписывая ссылки.
  *
  * Перестройка выражается обычной пачкой правок: содержимое переезжает на новые
  * адреса, освободившееся очищается. Поэтому бесплатно получаются и пересчёт,
@@ -29,64 +31,78 @@ use Finance\FormulaEngine\Values\FormulaError;
  * руками.
  *
  * Оформление переносится отдельно: в журнал оно и так не попадает, а правка
- * содержимого его не трогает.
+ * содержимого его не трогает. Так же отдельно переезжают ширины колонок:
+ * они принадлежат листу, а не ячейкам.
  */
-final readonly class ShiftSheetRowsAction
+final readonly class ShiftSheetLinesAction
 {
     public function __construct(
         private CellRepositoryContract $cells,
-        private RowShiftRewriter $rewriter,
+        private SheetRepositoryContract $sheets,
+        private ReferenceShiftRewriter $rewriter,
         private ApplyCellEditsAction $applyEdits,
     ) {
     }
 
     /**
-     * @throws RowsWouldOverflowSheetException
+     * @throws CellsWouldOverflowSheetException
      * @throws InvalidFormulaException
      * @throws InvalidReferenceException
      * @throws SyntaxErrorException
      * @throws CellNotSavedException
      */
-    public function insert(SheetModel $sheet, int $atRow, int $count, string $userIdentifier): AppliedCellEdits
-    {
+    public function insert(
+        SheetModel $sheet,
+        ShiftAxis $axis,
+        int $at,
+        int $count,
+        string $userIdentifier,
+    ): AppliedCellEdits {
         return $this->shift(
             $sheet,
+            $axis,
             $userIdentifier,
-            static fn (int $row): int => $row >= $atRow ? $row + $count : $row,
-            fn (string $formula): string => $this->rewriter->afterInsert($formula, $atRow, $count),
+            static fn (int $line): int => $line >= $at ? $line + $count : $line,
+            fn (string $formula): string => $this->rewriter->afterInsert($formula, $axis, $at, $count),
         );
     }
 
     /**
-     * @throws RowsWouldOverflowSheetException
+     * @throws CellsWouldOverflowSheetException
      * @throws InvalidFormulaException
      * @throws InvalidReferenceException
      * @throws SyntaxErrorException
      * @throws CellNotSavedException
      */
-    public function delete(SheetModel $sheet, int $fromRow, int $count, string $userIdentifier): AppliedCellEdits
-    {
-        $afterBand = $fromRow + $count;
+    public function delete(
+        SheetModel $sheet,
+        ShiftAxis $axis,
+        int $from,
+        int $count,
+        string $userIdentifier,
+    ): AppliedCellEdits {
+        $afterBand = $from + $count;
 
         return $this->shift(
             $sheet,
+            $axis,
             $userIdentifier,
-            static function (int $row) use ($fromRow, $afterBand, $count): ?int {
-                if ($row < $fromRow) {
-                    return $row;
+            static function (int $line) use ($from, $afterBand, $count): ?int {
+                if ($line < $from) {
+                    return $line;
                 }
 
-                return $row >= $afterBand ? $row - $count : null;
+                return $line >= $afterBand ? $line - $count : null;
             },
-            fn (string $formula): ?string => $this->rewriter->afterDelete($formula, $fromRow, $count),
+            fn (string $formula): ?string => $this->rewriter->afterDelete($formula, $axis, $from, $count),
         );
     }
 
     /**
-     * @param callable(int): ?int       $newRowOf    новая строка ячейки, null — строка удалена
+     * @param callable(int): ?int       $newLineOf   новая строка или колонка ячейки, null — удалена
      * @param callable(string): ?string $rewriteOf   формула после перестройки, null — опоры больше нет
      *
-     * @throws RowsWouldOverflowSheetException
+     * @throws CellsWouldOverflowSheetException
      * @throws InvalidFormulaException
      * @throws InvalidReferenceException
      * @throws SyntaxErrorException
@@ -94,11 +110,13 @@ final readonly class ShiftSheetRowsAction
      */
     private function shift(
         SheetModel $sheet,
+        ShiftAxis $axis,
         string $userIdentifier,
-        callable $newRowOf,
+        callable $newLineOf,
         callable $rewriteOf,
     ): AppliedCellEdits {
         $sheetIdentifier = $sheet->identifier();
+        $lastLine = $axis === ShiftAxis::Rows ? $sheet->row_count : $sheet->column_count;
         $inputsByAddress = [];
         $formatsByAddress = [];
         $touchedAddresses = [];
@@ -107,17 +125,17 @@ final readonly class ShiftSheetRowsAction
             $current = new CellReference($cell->column, $cell->row);
             $touchedAddresses[$current->key()] = true;
 
-            $newRow = $newRowOf($cell->row);
+            $newLine = $newLineOf($axis->coordinateOf($current));
 
-            if ($newRow === null) {
+            if ($newLine === null) {
                 continue;
             }
 
-            if ($newRow > $sheet->row_count) {
-                throw new RowsWouldOverflowSheetException();
+            if ($newLine > $lastLine) {
+                throw new CellsWouldOverflowSheetException();
             }
 
-            $moved = new CellReference($cell->column, $newRow);
+            $moved = $axis->withCoordinate($current, $newLine);
             $touchedAddresses[$moved->key()] = true;
             $inputsByAddress[$moved->key()] = $this->movedInput($cell, $rewriteOf);
 
@@ -127,6 +145,10 @@ final readonly class ShiftSheetRowsAction
         }
 
         $this->moveFormats($sheetIdentifier, array_keys($touchedAddresses), $formatsByAddress);
+
+        if ($axis === ShiftAxis::Columns) {
+            $this->moveColumnWidths($sheet, $newLineOf);
+        }
 
         $edits = [];
 
@@ -153,6 +175,28 @@ final readonly class ShiftSheetRowsAction
         }
 
         return $rewriteOf($cell->input) ?? FormulaError::BrokenReference->value;
+    }
+
+    /**
+     * Ширины переезжают вместе с колонками, ширина удалённой пропадает.
+     * Модель листа обновляется тут же, чтобы ответ показал новые ширины.
+     *
+     * @param callable(int): ?int $newLineOf
+     */
+    private function moveColumnWidths(SheetModel $sheet, callable $newLineOf): void
+    {
+        $widths = [];
+
+        foreach ($sheet->column_widths ?? [] as $letters => $width) {
+            $newColumn = $newLineOf(CellReference::lettersToColumn((string) $letters));
+
+            if ($newColumn !== null) {
+                $widths[CellReference::columnToLetters($newColumn)] = $width;
+            }
+        }
+
+        $this->sheets->updateColumnWidths($sheet->identifier(), $widths);
+        $sheet->column_widths = $widths;
     }
 
     /**

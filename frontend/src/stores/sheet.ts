@@ -15,6 +15,14 @@ interface AppliedEditsResponse {
     cells: Cell[];
 }
 
+/**
+ * Ответ на перестройку листа: к пачке правок добавлены ширины колонок,
+ * которые переезжают при сдвиге колонок.
+ */
+interface ShiftedSheetResponse extends AppliedEditsResponse {
+    columnWidths: Record<string, number>;
+}
+
 export interface CellRangeSelection {
     startRow: number;
     startColumn: number;
@@ -346,17 +354,36 @@ export const useSheetStore = defineStore('sheet', () => {
      * со ссылками формул.
      */
     async function insertRow(row: number): Promise<void> {
-        await shiftRows('insert', row);
+        await shiftLines('rows', 'insert', { row });
     }
 
     /**
      * Удаляет строку: нижние поднимаются на её место.
      */
     async function deleteRow(row: number): Promise<void> {
-        await shiftRows('delete', row);
+        await shiftLines('rows', 'delete', { row });
     }
 
-    async function shiftRows(operation: 'insert' | 'delete', row: number): Promise<void> {
+    /**
+     * Вставляет колонку перед указанной: всё, что правее, съезжает вправо
+     * вместе со ссылками формул и ширинами.
+     */
+    async function insertColumn(column: number): Promise<void> {
+        await shiftLines('columns', 'insert', { column });
+    }
+
+    /**
+     * Удаляет колонку: правые сдвигаются на её место.
+     */
+    async function deleteColumn(column: number): Promise<void> {
+        await shiftLines('columns', 'delete', { column });
+    }
+
+    async function shiftLines(
+        axis: 'rows' | 'columns',
+        operation: 'insert' | 'delete',
+        body: { row: number } | { column: number },
+    ): Promise<void> {
         if (activeSheet.value === null) {
             return;
         }
@@ -364,11 +391,12 @@ export const useSheetStore = defineStore('sheet', () => {
         errorMessage.value = null;
 
         try {
-            const applied = await sheetApi.request<AppliedEditsResponse>(
-                `sheets/${activeSheet.value.id}/rows/${operation}`,
-                { method: 'POST', body: { row } },
+            const applied = await sheetApi.request<ShiftedSheetResponse>(
+                `sheets/${activeSheet.value.id}/${axis}/${operation}`,
+                { method: 'POST', body },
             );
 
+            replaceSheet({ ...activeSheet.value, columnWidths: applied.columnWidths });
             mergeCells(applied.cells, applied.sheetVersion);
         } catch (error) {
             errorMessage.value = error instanceof Error ? error.message : 'Не удалось перестроить лист';
@@ -457,6 +485,8 @@ export const useSheetStore = defineStore('sheet', () => {
         exportActiveSheetToCsv,
         insertRow,
         deleteRow,
+        insertColumn,
+        deleteColumn,
         renameSheet,
         deleteSheet,
         updateColumnWidth,

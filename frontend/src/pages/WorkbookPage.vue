@@ -79,6 +79,14 @@ async function удалитьСтроку(): Promise<void> {
     await sheet.deleteRow(выбранная.value.row);
 }
 
+async function вставитьКолонку(): Promise<void> {
+    await sheet.insertColumn(выбранная.value.column);
+}
+
+async function удалитьКолонку(): Promise<void> {
+    await sheet.deleteColumn(выбранная.value.column);
+}
+
 async function показатьИсторию(): Promise<void> {
     if (sheet.activeSheet === null) {
         return;
@@ -116,6 +124,12 @@ async function выйти(): Promise<void> {
             </button>
             <button type="button" class="полоса-состояния__действие" @click="удалитьСтроку">
                 Удалить строку
+            </button>
+            <button type="button" class="полоса-состояния__действие" @click="вставитьКолонку">
+                Вставить колонку
+            </button>
+            <button type="button" class="полоса-состояния__действие" @click="удалитьКолонку">
+                Удалить колонку
             </button>
             <button type="button" class="полоса-состояния__действие" @click="sheet.exportActiveSheetToCsv">
                 Выгрузить CSV

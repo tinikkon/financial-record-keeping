@@ -7,7 +7,7 @@ namespace Finance\Domains\Sheets\Exceptions;
 use Finance\Domains\Core\Exceptions\DomainException;
 use Throwable;
 
-final class RowsWouldOverflowSheetException extends DomainException
+final class CellsWouldOverflowSheetException extends DomainException
 {
     public function __construct(?Throwable $previous = null)
     {

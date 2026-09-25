@@ -14,15 +14,16 @@ use Finance\Domains\Sheets\Actions\ExportSheetToCsvAction;
 use Finance\Domains\Sheets\Actions\FindAvailableSheetAction;
 use Finance\Domains\Sheets\Actions\RenameSheetAction;
 use Finance\Domains\Sheets\Actions\ReorderSheetsAction;
-use Finance\Domains\Sheets\Actions\ShiftSheetRowsAction;
+use Finance\Domains\Sheets\Actions\ShiftSheetLinesAction;
 use Finance\Domains\Sheets\Actions\UpdateColumnWidthsAction;
 use Finance\Domains\Sheets\Contracts\SheetRepositoryContract;
 use Finance\Domains\Sheets\Exceptions\SheetNameAlreadyUsedException;
-use Finance\Domains\Sheets\Exceptions\RowsWouldOverflowSheetException;
+use Finance\Domains\Sheets\Exceptions\CellsWouldOverflowSheetException;
 use Finance\Domains\Sheets\Exceptions\SheetNotAvailableException;
 use Finance\Domains\Sheets\Models\SheetModel;
 use Finance\Domains\Sheets\Requests\CreateSheetRequest;
 use Finance\Domains\Sheets\Requests\ReorderSheetsRequest;
+use Finance\Domains\Sheets\Requests\ShiftColumnsRequest;
 use Finance\Domains\Sheets\Requests\ShiftRowsRequest;
 use Finance\Domains\Sheets\Requests\UpdateSheetRequest;
 use Finance\Domains\Sheets\Resources\SheetResource;
@@ -32,6 +33,7 @@ use Finance\Domains\Messaging\Actions\PublishCellsChangedAction;
 use Finance\Domains\Realtime\Actions\BroadcastCellsChangedAction;
 use Finance\Domains\Workbooks\Actions\FindAvailableWorkbookAction;
 use Finance\Domains\Workbooks\Exceptions\WorkbookNotAvailableException;
+use Finance\FormulaEngine\Editing\ShiftAxis;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -175,21 +177,21 @@ final readonly class SheetController
      *
      * @throws InvalidAccessTokenException
      * @throws SheetNotAvailableException
-     * @throws RowsWouldOverflowSheetException
+     * @throws CellsWouldOverflowSheetException
      * @throws InvalidFormulaException
      */
     public function insertRows(
         ShiftRowsRequest $request,
         string $sheetIdentifier,
         FindAvailableSheetAction $findSheet,
-        ShiftSheetRowsAction $shiftRows,
+        ShiftSheetLinesAction $shiftLines,
         BroadcastCellsChangedAction $broadcastChanges,
         PublishCellsChangedAction $publishChanges,
     ): JsonResponse {
         $userIdentifier = CurrentUser::identifier($request);
         $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
 
-        $applied = $shiftRows->insert($sheet, $request->row(), $request->count(), $userIdentifier);
+        $applied = $shiftLines->insert($sheet, ShiftAxis::Rows, $request->row(), $request->count(), $userIdentifier);
 
         return $this->applied($sheet, $applied, $userIdentifier, $broadcastChanges, $publishChanges);
     }
@@ -199,28 +201,77 @@ final readonly class SheetController
      *
      * @throws InvalidAccessTokenException
      * @throws SheetNotAvailableException
-     * @throws RowsWouldOverflowSheetException
+     * @throws CellsWouldOverflowSheetException
      * @throws InvalidFormulaException
      */
     public function deleteRows(
         ShiftRowsRequest $request,
         string $sheetIdentifier,
         FindAvailableSheetAction $findSheet,
-        ShiftSheetRowsAction $shiftRows,
+        ShiftSheetLinesAction $shiftLines,
         BroadcastCellsChangedAction $broadcastChanges,
         PublishCellsChangedAction $publishChanges,
     ): JsonResponse {
         $userIdentifier = CurrentUser::identifier($request);
         $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
 
-        $applied = $shiftRows->delete($sheet, $request->row(), $request->count(), $userIdentifier);
+        $applied = $shiftLines->delete($sheet, ShiftAxis::Rows, $request->row(), $request->count(), $userIdentifier);
+
+        return $this->applied($sheet, $applied, $userIdentifier, $broadcastChanges, $publishChanges);
+    }
+
+    /**
+     * Вставляет колонки перед указанной; всё, что правее, съезжает вправо.
+     *
+     * @throws InvalidAccessTokenException
+     * @throws SheetNotAvailableException
+     * @throws CellsWouldOverflowSheetException
+     * @throws InvalidFormulaException
+     */
+    public function insertColumns(
+        ShiftColumnsRequest $request,
+        string $sheetIdentifier,
+        FindAvailableSheetAction $findSheet,
+        ShiftSheetLinesAction $shiftLines,
+        BroadcastCellsChangedAction $broadcastChanges,
+        PublishCellsChangedAction $publishChanges,
+    ): JsonResponse {
+        $userIdentifier = CurrentUser::identifier($request);
+        $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
+
+        $applied = $shiftLines->insert($sheet, ShiftAxis::Columns, $request->column(), $request->count(), $userIdentifier);
+
+        return $this->applied($sheet, $applied, $userIdentifier, $broadcastChanges, $publishChanges);
+    }
+
+    /**
+     * Удаляет колонки; всё, что правее, сдвигается на их место.
+     *
+     * @throws InvalidAccessTokenException
+     * @throws SheetNotAvailableException
+     * @throws CellsWouldOverflowSheetException
+     * @throws InvalidFormulaException
+     */
+    public function deleteColumns(
+        ShiftColumnsRequest $request,
+        string $sheetIdentifier,
+        FindAvailableSheetAction $findSheet,
+        ShiftSheetLinesAction $shiftLines,
+        BroadcastCellsChangedAction $broadcastChanges,
+        PublishCellsChangedAction $publishChanges,
+    ): JsonResponse {
+        $userIdentifier = CurrentUser::identifier($request);
+        $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
+
+        $applied = $shiftLines->delete($sheet, ShiftAxis::Columns, $request->column(), $request->count(), $userIdentifier);
 
         return $this->applied($sheet, $applied, $userIdentifier, $broadcastChanges, $publishChanges);
     }
 
     /**
      * Ответ на перестройку листа — тот же, что и на обычную пачку правок:
-     * клиент применяет её тем же кодом.
+     * клиент применяет её тем же кодом. Ширины колонок идут рядом:
+     * после сдвига колонок они тоже переехали.
      */
     private function applied(
         SheetModel $sheet,
@@ -235,6 +286,7 @@ final readonly class SheetController
         return new JsonResponse([
             'sheetVersion' => $applied->sheetVersion,
             'cells' => array_map(CellResource::toArray(...), $applied->cells),
+            'columnWidths' => $sheet->column_widths ?? [],
         ]);
     }
 
