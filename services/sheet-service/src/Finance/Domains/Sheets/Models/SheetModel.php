@@ -6,6 +6,7 @@ namespace Finance\Domains\Sheets\Models;
 
 use Carbon\CarbonImmutable;
 use Finance\Domains\Core\Models\MongoModel;
+use Finance\Domains\Sheets\Data\ColumnWidths;
 
 /**
  * Лист книги — один месяц.
@@ -21,7 +22,7 @@ use Finance\Domains\Core\Models\MongoModel;
  * @property int                 $version
  * @property int                 $row_count
  * @property int                 $column_count
- * @property array<string, int>  $column_widths
+ * @property array<string, int>|null $column_widths
  * @property CarbonImmutable     $created_at
  * @property CarbonImmutable     $updated_at
  */
@@ -55,5 +56,10 @@ final class SheetModel extends MongoModel
     public function identifier(): string
     {
         return (string) $this->_id;
+    }
+
+    public function columnWidths(): ColumnWidths
+    {
+        return ColumnWidths::fromArray($this->column_widths ?? []);
     }
 }

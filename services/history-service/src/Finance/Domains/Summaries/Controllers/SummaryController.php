@@ -6,6 +6,8 @@ namespace Finance\Domains\Summaries\Controllers;
 
 use Finance\Domains\Summaries\Actions\BuildWorkbookSummaryAction;
 use Finance\Domains\Summaries\Actions\ReconstructSheetStateAction;
+use Finance\Domains\Summaries\Resources\SheetStateResource;
+use Finance\Domains\Summaries\Resources\SheetSummaryResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,7 +15,9 @@ final readonly class SummaryController
 {
     public function workbook(string $workbookIdentifier, BuildWorkbookSummaryAction $buildSummary): JsonResponse
     {
-        return new JsonResponse(['sheets' => $buildSummary->execute($workbookIdentifier)]);
+        return new JsonResponse([
+            'sheets' => array_map(SheetSummaryResource::toArray(...), $buildSummary->execute($workbookIdentifier)),
+        ]);
     }
 
     public function sheetState(
@@ -29,7 +33,7 @@ final readonly class SummaryController
 
         return new JsonResponse([
             'sheetVersion' => $version,
-            'cells' => $reconstructState->execute($sheetIdentifier, $version),
+            'cells' => SheetStateResource::toArray($reconstructState->execute($sheetIdentifier, $version)),
         ]);
     }
 }

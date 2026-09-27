@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Finance\Domains\Messaging\Contracts\EventPublisherContract;
+use Finance\Domains\Messaging\Contracts\OutgoingMessage;
 use Finance\Domains\Messaging\Models\PendingMessageModel;
 use Finance\Domains\Messaging\Services\MessagePublishingFailedException;
 
@@ -15,17 +16,21 @@ final class RecordingEventPublisher implements EventPublisherContract
     /** @var list<array{routingKey: string, messageId: string, payload: array<string, mixed>}> */
     public array $published = [];
 
-    public function publish(string $routingKey, string $messageIdentifier, array $payload): void
+    public function publish(OutgoingMessage $message): void
     {
-        $this->published[] = ['routingKey' => $routingKey, 'messageId' => $messageIdentifier, 'payload' => $payload];
+        $this->published[] = [
+            'routingKey' => $message->routingKey(),
+            'messageId' => $message->messageIdentifier(),
+            'payload' => $message->body(),
+        ];
     }
 }
 
 final class BrokenEventPublisher implements EventPublisherContract
 {
-    public function publish(string $routingKey, string $messageIdentifier, array $payload): void
+    public function publish(OutgoingMessage $message): void
     {
-        throw new MessagePublishingFailedException($routingKey);
+        throw new MessagePublishingFailedException($message->routingKey());
     }
 }
 

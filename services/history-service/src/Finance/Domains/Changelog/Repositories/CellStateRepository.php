@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Changelog\Repositories;
 
+use Finance\Domains\Changelog\Data\CellStateUpdate;
 use Finance\Domains\Changelog\Models\CellStateModel;
 use Finance\Domains\Core\Contracts\IndexDefinition;
 use Finance\Domains\Core\Contracts\ProvidesIndexes;
@@ -29,17 +30,23 @@ final class CellStateRepository extends AbstractMongoRepository implements Provi
      * модели: Eloquent при обновлении отправляет только поля, которые считает
      * изменившимися, и поле с собственным приведением типа в этот список
      * не попадает — значение молча остаётся прежним.
-     *
-     * @param array<string, mixed> $attributes
      */
-    public function remember(string $sheetIdentifier, string $address, array $attributes): void
+    public function remember(CellStateUpdate $state): void
     {
-        $number = $attributes['value_number'] ?? null;
-        $attributes['value_number'] = $number === null ? null : new Decimal128((string) $number);
+        $position = ['sheet_id' => $state->sheetIdentifier, 'address' => $state->address];
 
         $this->collection()->updateOne(
-            ['sheet_id' => $sheetIdentifier, 'address' => $address],
-            ['$set' => [...$attributes, 'sheet_id' => $sheetIdentifier, 'address' => $address]],
+            $position,
+            ['$set' => [
+                ...$position,
+                'workbook_id' => $state->workbookIdentifier,
+                'sheet_name' => $state->sheetName,
+                'row' => $state->row,
+                'column' => $state->column,
+                'value' => $state->value,
+                'value_number' => $state->numberValue === null ? null : new Decimal128($state->numberValue),
+                'input' => $state->input,
+            ]],
             ['upsert' => true, ...$this->sessionOptions()],
         );
     }

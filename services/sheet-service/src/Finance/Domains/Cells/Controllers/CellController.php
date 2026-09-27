@@ -13,6 +13,7 @@ use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
 use Finance\Domains\Cells\Models\CellModel;
 use Finance\Domains\Cells\Requests\FormatCellsRequest;
 use Finance\Domains\Cells\Requests\UpdateCellsRequest;
+use Finance\Domains\Cells\Resources\AppliedCellEditsResource;
 use Finance\Domains\Cells\Resources\CellResource;
 use Finance\Domains\Messaging\Actions\PublishCellsChangedAction;
 use Finance\Domains\Realtime\Actions\BroadcastCellsChangedAction;
@@ -68,13 +69,10 @@ final readonly class CellController
 
         $applied = $applyEdits->execute($sheet, $request->edits(), $userIdentifier);
 
-        $broadcastChanges->execute($sheetIdentifier, $applied->sheetVersion, $applied->cells, $userIdentifier);
-        $publishChanges->execute($sheet, $applied->sheetVersion, $applied->cells, $userIdentifier);
+        $broadcastChanges->execute($sheetIdentifier, $applied, $userIdentifier);
+        $publishChanges->execute($sheet, $applied, $userIdentifier);
 
-        return new JsonResponse([
-            'sheetVersion' => $applied->sheetVersion,
-            'cells' => array_map(CellResource::toArray(...), $applied->cells),
-        ]);
+        return new JsonResponse(AppliedCellEditsResource::toArray($applied));
     }
 
     /**
@@ -92,13 +90,10 @@ final readonly class CellController
         $userIdentifier = CurrentUser::identifier($request);
         $sheet = $findSheet->execute($sheetIdentifier, $userIdentifier);
 
-        $result = $formatCells->execute($sheet, $request->range(), $request->cellFormat());
+        $applied = $formatCells->execute($sheet, $request->range(), $request->cellFormatChange());
 
-        $broadcastChanges->execute($sheetIdentifier, $result['version'], $result['cells'], $userIdentifier);
+        $broadcastChanges->execute($sheetIdentifier, $applied, $userIdentifier);
 
-        return new JsonResponse([
-            'sheetVersion' => $result['version'],
-            'cells' => array_map(CellResource::toArray(...), $result['cells']),
-        ]);
+        return new JsonResponse(AppliedCellEditsResource::toArray($applied));
     }
 }

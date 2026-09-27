@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Finance\Domains\Cells\Data\AppliedCellEdits;
 use Finance\Domains\Realtime\Events\CellsChangedEvent;
 use Illuminate\Support\Facades\Event;
 
@@ -14,15 +15,15 @@ test('правка ячеек уходит событием в канал лис
     Event::assertDispatched(
         CellsChangedEvent::class,
         fn (CellsChangedEvent $event): bool => $event->sheetIdentifier === $context['sheet']
-            && $event->sheetVersion === 1
-            && count($event->cells) === 2,
+            && $event->changes->sheetVersion === 1
+            && count($event->changes->cells) === 2,
     );
 });
 
 test('событие уходит в закрытый канал именно этого листа', function (): void {
     $context = sheetContext();
 
-    $event = new CellsChangedEvent($context['sheet'], 7, [], $context['userId']);
+    $event = new CellsChangedEvent($context['sheet'], new AppliedCellEdits(7, []), $context['userId']);
 
     expect($event->broadcastOn()[0]->name)->toBe("private-sheet.{$context['sheet']}")
         ->and($event->broadcastAs())->toBe('cells.changed')

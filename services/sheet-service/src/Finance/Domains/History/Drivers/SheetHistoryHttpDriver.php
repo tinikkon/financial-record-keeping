@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finance\Domains\History\Drivers;
 
 use Finance\Domains\History\Contracts\SheetHistoryDriverContract;
+use Finance\Domains\History\Data\SheetState;
 use Finance\Domains\History\Exceptions\HistoryUnavailableException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -24,7 +25,7 @@ final readonly class SheetHistoryHttpDriver implements SheetHistoryDriverContrac
     ) {
     }
 
-    public function stateAtVersion(string $sheetIdentifier, int $version, string $accessToken): array
+    public function stateAtVersion(string $sheetIdentifier, int $version, string $accessToken): SheetState
     {
         try {
             $response = Http::withToken($accessToken)
@@ -39,9 +40,8 @@ final readonly class SheetHistoryHttpDriver implements SheetHistoryDriverContrac
             throw new HistoryUnavailableException();
         }
 
-        /** @var array<string, array{value: string|null, input: string|null}> $cells */
         $cells = $response->json('cells', []);
 
-        return $cells;
+        return SheetState::fromArray(is_array($cells) ? $cells : []);
     }
 }

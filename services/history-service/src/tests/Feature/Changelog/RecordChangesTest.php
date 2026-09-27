@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Finance\Domains\Changelog\Data\SheetChangedMessage;
+use Finance\Domains\Changelog\Exceptions\MalformedMessageException;
 use Finance\Domains\Changelog\Models\CellChangeModel;
 
 test('первое изменение ячейки записывается с пустым прежним значением', function (): void {
@@ -66,4 +68,13 @@ test('очистка ячейки тоже попадает в журнал', fu
 
     expect($latest->value_before)->toBe('120')
         ->and($latest->value_after)->toBeNull();
+});
+
+test('сообщение без адреса ячейки отвергается на входе, а не посреди записи', function (): void {
+    $cell = cellPayload('B3', 3, 2, '120');
+    unset($cell['address']);
+
+    expect(fn (): SheetChangedMessage => SheetChangedMessage::fromArray(sheetEvent([$cell])))
+        ->toThrow(MalformedMessageException::class)
+        ->and(CellChangeModel::query()->count())->toBe(0);
 });

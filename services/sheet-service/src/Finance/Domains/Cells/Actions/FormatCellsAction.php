@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Finance\Domains\Cells\Actions;
 
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Data\AppliedCellEdits;
+use Finance\Domains\Cells\Data\CellFormat;
+use Finance\Domains\Cells\Data\CellFormatChange;
 use Finance\Domains\Cells\Exceptions\CellNotSavedException;
-use Finance\Domains\Cells\Enums\CellKind;
-use Finance\Domains\Cells\Models\CellModel;
 use Finance\Domains\Sheets\Contracts\SheetRepositoryContract;
 use Finance\Domains\Sheets\Models\SheetModel;
 use Finance\FormulaEngine\Values\CellRange;
@@ -15,7 +16,7 @@ use Finance\FormulaEngine\Values\CellRange;
 /**
  * Красит диапазон ячеек.
  *
- * Свойство со значением null снимается, остальные накладываются поверх прежних:
+ * Правка накладывается поверх прежнего оформления, а не заменяет его:
  * так можно убрать заливку, не сбрасывая заодно жирность.
  */
 final readonly class FormatCellsAction
@@ -27,50 +28,34 @@ final readonly class FormatCellsAction
     }
 
     /**
-     * @param array<string, mixed> $format
-     *
-     * @return array{version: int, cells: list<CellModel>}
+     * @throws CellNotSavedException
      */
-    public function execute(SheetModel $sheet, CellRange $range, array $format): array
+    public function execute(SheetModel $sheet, CellRange $range, CellFormatChange $change): AppliedCellEdits
     {
         $sheetIdentifier = $sheet->identifier();
-        $existingByAddress = [];
 
+        $existingByAddress = [];
         foreach ($this->cells->findInRange($sheetIdentifier, $range) as $cell) {
             $existingByAddress[$cell->address()] = $cell;
         }
 
         $updated = [];
-
         foreach ($range->references() as $reference) {
             $existing = $existingByAddress[$reference->key()] ?? null;
-            $merged = $existing === null ? [] : ($existing->format ?? []);
-
-            foreach ($format as $property => $value) {
-                if ($value === null) {
-                    unset($merged[$property]);
-
-                    continue;
-                }
-
-                $merged[$property] = $value;
-            }
+            $merged = $change->applyTo($existing?->cellFormat() ?? new CellFormat());
 
             // Пустая ячейка без оформления в базе не заводится: пять тысяч пустых
             // документов на лист хранить незачем.
-            if ($existing === null && $merged === []) {
+            if ($existing === null && $merged->isEmpty()) {
                 continue;
             }
 
-            $updated[] = $this->cells->save($sheetIdentifier, $reference, [
-                'format' => $merged,
-                'kind' => $existing === null ? CellKind::Empty->value : $existing->kind,
-            ]);
+            $updated[] = $this->cells->saveFormat($sheetIdentifier, $reference, $merged);
         }
 
-        return [
-            'version' => $this->sheets->incrementVersion($sheetIdentifier),
-            'cells' => $updated,
-        ];
+        return new AppliedCellEdits(
+            sheetVersion: $this->sheets->incrementVersion($sheetIdentifier),
+            cells: $updated,
+        );
     }
 }

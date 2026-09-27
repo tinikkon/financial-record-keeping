@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Finance\Domains\History\Contracts\SheetHistoryDriverContract;
+use Finance\Domains\History\Data\SheetState;
 use Finance\Domains\History\Exceptions\HistoryUnavailableException;
 
 /**
@@ -17,15 +18,15 @@ final class FakeSheetHistoryDriver implements SheetHistoryDriverContract
     {
     }
 
-    public function stateAtVersion(string $sheetIdentifier, int $version, string $accessToken): array
+    public function stateAtVersion(string $sheetIdentifier, int $version, string $accessToken): SheetState
     {
-        return $this->state;
+        return SheetState::fromArray($this->state);
     }
 }
 
 final class BrokenSheetHistoryDriver implements SheetHistoryDriverContract
 {
-    public function stateAtVersion(string $sheetIdentifier, int $version, string $accessToken): array
+    public function stateAtVersion(string $sheetIdentifier, int $version, string $accessToken): SheetState
     {
         throw new HistoryUnavailableException();
     }

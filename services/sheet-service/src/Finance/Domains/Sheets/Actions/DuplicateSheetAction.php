@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Finance\Domains\Sheets\Actions;
 
 use Finance\Domains\Calculation\Actions\ApplyCellEditsAction;
-use Finance\Domains\Cells\Actions\CellEdit;
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Data\CellContent;
+use Finance\Domains\Cells\Data\CellEdit;
 use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
 use Finance\Domains\Cells\Models\CellModel;
@@ -46,25 +47,25 @@ final readonly class DuplicateSheetAction
             position: $this->sheets->nextPosition($source->workbook_id),
             rowCount: $source->row_count,
             columnCount: $source->column_count,
-            columnWidths: $source->column_widths ?? [],
+            columnWidths: $source->columnWidths(),
         );
 
         $sourceCells = $this->cells->forSheet($source->identifier());
 
         foreach ($sourceCells as $cell) {
-            $format = $cell->format ?? [];
+            $isText = $cell->cellKind() === CellKind::Text;
+            $format = $cell->cellFormat();
 
-            if ($format === [] && $cell->cellKind() !== CellKind::Text) {
+            if (! $isText && $format->isEmpty()) {
                 continue;
             }
 
-            $this->cells->save($copy->identifier(), $cell->reference(), [
-                'kind' => $cell->cellKind() === CellKind::Text ? CellKind::Text->value : CellKind::Empty->value,
-                'input' => $cell->cellKind() === CellKind::Text ? $cell->input : null,
-                'value_text' => $cell->cellKind() === CellKind::Text ? $cell->value_text : null,
-                'format' => $format,
-                'updated_by' => $userIdentifier,
-            ]);
+            $content = $isText ? CellContent::text((string) $cell->input) : CellContent::empty();
+            $this->cells->saveContent($copy->identifier(), $cell->reference(), $content, $userIdentifier);
+
+            if (! $format->isEmpty()) {
+                $this->cells->saveFormat($copy->identifier(), $cell->reference(), $format);
+            }
         }
 
         $formulaEdits = $sourceCells

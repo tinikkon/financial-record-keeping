@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Finance\Domains\History\Actions;
 
 use Finance\Domains\Calculation\Actions\ApplyCellEditsAction;
-use Finance\Domains\Cells\Actions\AppliedCellEdits;
-use Finance\Domains\Cells\Actions\CellEdit;
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Data\AppliedCellEdits;
+use Finance\Domains\Cells\Data\CellEdit;
 use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
 use Finance\Domains\Cells\Models\CellModel;
 use Finance\Domains\History\Contracts\SheetHistoryDriverContract;
@@ -50,10 +50,10 @@ final readonly class RestoreSheetStateAction
 
         // Ячейки, заполненные сейчас, но пустые в прошлом, надо очистить —
         // иначе восстановление оставило бы лишнее от более поздних правок.
-        foreach (array_unique([...$currentAddresses, ...array_keys($restored)]) as $address) {
+        foreach (array_unique([...$currentAddresses, ...$restored->addresses()]) as $address) {
             $edits[] = new CellEdit(
                 CellReference::fromString($address),
-                $restored[$address]['input'] ?? null,
+                $restored->inputAt($address),
             );
         }
 

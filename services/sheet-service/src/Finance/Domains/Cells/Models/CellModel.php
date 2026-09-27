@@ -6,6 +6,7 @@ namespace Finance\Domains\Cells\Models;
 
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
+use Finance\Domains\Cells\Data\CellFormat;
 use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Core\Casts\Decimal128Cast;
 use Finance\Domains\Core\Models\MongoModel;
@@ -29,7 +30,7 @@ use Finance\FormulaEngine\Values\CellReference;
  * @property BigDecimal|null             $value_number
  * @property string|null                 $value_text
  * @property string|null                 $error
- * @property array<string, mixed>        $format
+ * @property array<string, mixed>|null   $format
  * @property list<string>                $depends_on_cells
  * @property list<array<string, int>>    $depends_on_ranges
  * @property string|null                 $updated_by
@@ -65,6 +66,15 @@ final class CellModel extends MongoModel
     public function cellKind(): CellKind
     {
         return CellKind::from($this->kind);
+    }
+
+    /**
+     * Метод назван не format: имя совпало бы с полем, и Eloquent принял бы
+     * поле за связь.
+     */
+    public function cellFormat(): CellFormat
+    {
+        return CellFormat::fromArray($this->format ?? []);
     }
 
     public function reference(): CellReference

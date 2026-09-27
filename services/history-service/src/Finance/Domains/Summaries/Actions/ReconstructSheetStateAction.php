@@ -6,6 +6,8 @@ namespace Finance\Domains\Summaries\Actions;
 
 use Finance\Domains\Changelog\Models\CellChangeModel;
 use Finance\Domains\Changelog\Repositories\CellChangeRepository;
+use Finance\Domains\Summaries\Data\CellSnapshot;
+use Finance\Domains\Summaries\Data\SheetState;
 
 /**
  * Восстанавливает содержимое листа на заданную версию.
@@ -21,21 +23,18 @@ final readonly class ReconstructSheetStateAction
     {
     }
 
-    /**
-     * @return array<string, array{value: string|null, input: string|null}>
-     */
-    public function execute(string $sheetIdentifier, int $version): array
+    public function execute(string $sheetIdentifier, int $version): SheetState
     {
-        $state = [];
+        $cellsByAddress = [];
 
         foreach ($this->changes->upToVersion($sheetIdentifier, $version) as $change) {
             /** @var CellChangeModel $change */
-            $state[$change->address] = [
-                'value' => $change->value_after,
-                'input' => $change->input_after,
-            ];
+            $cellsByAddress[$change->address] = new CellSnapshot($change->value_after, $change->input_after);
         }
 
-        return array_filter($state, static fn (array $cell): bool => $cell['value'] !== null || $cell['input'] !== null);
+        return new SheetState(array_filter(
+            $cellsByAddress,
+            static fn (CellSnapshot $cell): bool => ! $cell->isEmpty(),
+        ));
     }
 }

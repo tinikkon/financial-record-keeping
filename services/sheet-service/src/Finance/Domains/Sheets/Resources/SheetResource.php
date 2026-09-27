@@ -21,7 +21,7 @@ final readonly class SheetResource
             'version' => $sheet->version,
             'rowCount' => $sheet->row_count,
             'columnCount' => $sheet->column_count,
-            'columnWidths' => $sheet->column_widths ?? [],
+            'columnWidths' => $sheet->columnWidths()->toArray(),
         ];
     }
 }

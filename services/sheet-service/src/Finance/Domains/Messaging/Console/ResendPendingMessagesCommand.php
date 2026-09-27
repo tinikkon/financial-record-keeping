@@ -6,6 +6,7 @@ namespace Finance\Domains\Messaging\Console;
 
 use Finance\Domains\Messaging\Contracts\EventPublisherContract;
 use Finance\Domains\Messaging\Contracts\PendingMessageRepositoryContract;
+use Finance\Domains\Messaging\Data\StoredOutgoingMessage;
 use Finance\Domains\Messaging\Services\MessagePublishingFailedException;
 use Illuminate\Console\Command;
 
@@ -31,7 +32,7 @@ final class ResendPendingMessagesCommand extends Command
 
         foreach ($pendingMessages->oldestFirst(self::BATCH_SIZE) as $message) {
             try {
-                $publisher->publish($message->routing_key, $message->message_id, $message->payload);
+                $publisher->publish(StoredOutgoingMessage::fromModel($message));
             } catch (MessagePublishingFailedException $exception) {
                 $pendingMessages->countAttempt((string) $message->_id);
                 $this->error("Очередь всё ещё недоступна: {$exception->getMessage()}");

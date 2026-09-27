@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Finance\Domains\Sheets\Actions;
 
 use Finance\Domains\Calculation\Actions\ApplyCellEditsAction;
-use Finance\Domains\Cells\Actions\AppliedCellEdits;
-use Finance\Domains\Cells\Actions\CellEdit;
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Data\AppliedCellEdits;
+use Finance\Domains\Cells\Data\CellEdit;
+use Finance\Domains\Cells\Data\CellFormat;
 use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Cells\Exceptions\CellNotSavedException;
 use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
@@ -139,8 +140,10 @@ final readonly class ShiftSheetLinesAction
             $touchedAddresses[$moved->key()] = true;
             $inputsByAddress[$moved->key()] = $this->movedInput($cell, $rewriteOf);
 
-            if ($cell->format !== []) {
-                $formatsByAddress[$moved->key()] = $cell->format;
+            $format = $cell->cellFormat();
+
+            if (! $format->isEmpty()) {
+                $formatsByAddress[$moved->key()] = $format;
             }
         }
 
@@ -185,23 +188,15 @@ final readonly class ShiftSheetLinesAction
      */
     private function moveColumnWidths(SheetModel $sheet, callable $newLineOf): void
     {
-        $widths = [];
-
-        foreach ($sheet->column_widths ?? [] as $letters => $width) {
-            $newColumn = $newLineOf(CellReference::lettersToColumn((string) $letters));
-
-            if ($newColumn !== null) {
-                $widths[CellReference::columnToLetters($newColumn)] = $width;
-            }
-        }
+        $widths = $sheet->columnWidths()->remapped($newLineOf);
 
         $this->sheets->updateColumnWidths($sheet->identifier(), $widths);
-        $sheet->column_widths = $widths;
+        $sheet->column_widths = $widths->toArray();
     }
 
     /**
-     * @param list<string>                      $addresses
-     * @param array<string, array<string, mixed>> $formatsByAddress
+     * @param list<string>              $addresses
+     * @param array<string, CellFormat> $formatsByAddress
      *
      * @throws InvalidReferenceException
      * @throws CellNotSavedException
@@ -209,9 +204,11 @@ final readonly class ShiftSheetLinesAction
     private function moveFormats(string $sheetIdentifier, array $addresses, array $formatsByAddress): void
     {
         foreach ($addresses as $address) {
-            $this->cells->save($sheetIdentifier, CellReference::fromString($address), [
-                'format' => $formatsByAddress[$address] ?? null,
-            ]);
+            $this->cells->saveFormat(
+                $sheetIdentifier,
+                CellReference::fromString($address),
+                $formatsByAddress[$address] ?? new CellFormat(),
+            );
         }
     }
 }

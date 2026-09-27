@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Finance\Domains\Cells\Repositories;
 
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Data\CellContent;
+use Finance\Domains\Cells\Data\CellFormat;
+use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Cells\Exceptions\CellNotSavedException;
 use Finance\Domains\Cells\Models\CellModel;
 use Finance\Domains\Core\Contracts\IndexDefinition;
@@ -12,6 +15,7 @@ use Finance\Domains\Core\Contracts\ProvidesIndexes;
 use Finance\Domains\Core\Repositories\AbstractMongoRepository;
 use Finance\FormulaEngine\Values\CellRange;
 use Finance\FormulaEngine\Values\CellReference;
+use Finance\FormulaEngine\Values\CellValue;
 use Illuminate\Support\Collection;
 use MongoDB\BSON\Decimal128;
 
@@ -77,45 +81,66 @@ final class CellRepository extends AbstractMongoRepository implements CellReposi
     }
 
     /**
-     * Записывает ячейку, создавая её при первом заполнении.
-     *
-     * Операция выполняется одним запросом с upsert, а не чтением и сохранением
-     * модели. Eloquent при обновлении отправляет только поля, которые считает
-     * изменившимися, и поле с собственным приведением типа в этот список
-     * не попадает: в памяти новое значение есть, в базе остаётся прежнее.
-     * Поймать такое тестом можно только перечитав запись заново.
+     * @throws CellNotSavedException
+     */
+    public function saveContent(
+        string $sheetIdentifier,
+        CellReference $reference,
+        CellContent $content,
+        string $updatedBy,
+    ): CellModel {
+        return $this->upsert($sheetIdentifier, $reference, [
+            'input' => $content->input,
+            'kind' => $content->kind->value,
+            'value_number' => $this->decimalOrNull($content->numberValue),
+            'value_text' => $content->textValue,
+            'error' => null,
+            'depends_on_cells' => $content->dependsOnCells,
+            'depends_on_ranges' => array_map(
+                static fn (CellRange $range): array => [
+                    'min_row' => $range->minimumRow,
+                    'max_row' => $range->maximumRow,
+                    'min_column' => $range->minimumColumn,
+                    'max_column' => $range->maximumColumn,
+                ],
+                $content->dependsOnRanges,
+            ),
+            'updated_by' => $updatedBy,
+        ]);
+    }
+
+    /**
+     * @throws CellNotSavedException
+     */
+    public function saveComputedValue(
+        string $sheetIdentifier,
+        CellReference $reference,
+        CellValue $value,
+        string $updatedBy,
+    ): CellModel {
+        return $this->upsert($sheetIdentifier, $reference, [
+            'value_number' => $this->decimalOrNull($value->isNumber() ? (string) $value->numberValue() : null),
+            'value_text' => $value->isText() ? $value->textValue() : null,
+            'error' => $value->errorValue()?->value,
+            'updated_by' => $updatedBy,
+        ]);
+    }
+
+    /**
+     * Пустое оформление хранится как null, а не как пустой массив: пустой
+     * массив ушёл бы клиенту списком вместо объекта.
      *
      * @throws CellNotSavedException
      */
-    public function save(string $sheetIdentifier, CellReference $reference, array $attributes): CellModel
+    public function saveFormat(string $sheetIdentifier, CellReference $reference, CellFormat $format): CellModel
     {
-        if (array_key_exists('value_number', $attributes)) {
-            $number = $attributes['value_number'];
-            $attributes['value_number'] = $number === null ? null : new Decimal128((string) $number);
-        }
-
-        $position = [
-            'sheet_id' => $sheetIdentifier,
-            'row' => $reference->row,
-            'column' => $reference->column,
-        ];
-
-        $this->collection()->updateOne(
-            $position,
-            [
-                '$set' => [...$attributes, ...$position],
-                '$currentDate' => ['updated_at' => true],
-            ],
-            ['upsert' => true, ...$this->sessionOptions()],
+        return $this->upsert(
+            $sheetIdentifier,
+            $reference,
+            ['format' => $format->isEmpty() ? null : $format->toArray()],
+            // Ячейка, заведённая ради одного оформления, пуста по содержимому.
+            ['kind' => CellKind::Empty->value],
         );
-
-        $saved = $this->findAt($sheetIdentifier, $reference);
-
-        if ($saved === null) {
-            throw new CellNotSavedException($reference->key());
-        }
-
-        return $saved;
     }
 
     public function deleteForSheet(string $sheetIdentifier): void
@@ -150,5 +175,52 @@ final class CellRepository extends AbstractMongoRepository implements CellReposi
     protected function modelClass(): string
     {
         return CellModel::class;
+    }
+
+    /**
+     * Запись одним запросом с upsert, а не чтением и сохранением модели.
+     * Eloquent при обновлении отправляет только поля, которые считает
+     * изменившимися, и поле с собственным приведением типа в этот список
+     * не попадает: в памяти новое значение есть, в базе остаётся прежнее.
+     * Поймать такое тестом можно только перечитав запись заново.
+     *
+     * @param array<string, mixed> $fields       поля документа в том виде, в каком их хранит база
+     * @param array<string, mixed> $insertFields поля, которые задаются только при создании
+     *
+     * @throws CellNotSavedException
+     */
+    private function upsert(
+        string $sheetIdentifier,
+        CellReference $reference,
+        array $fields,
+        array $insertFields = [],
+    ): CellModel {
+        $position = [
+            'sheet_id' => $sheetIdentifier,
+            'row' => $reference->row,
+            'column' => $reference->column,
+        ];
+
+        $update = [
+            '$set' => [...$fields, ...$position],
+            '$currentDate' => ['updated_at' => true],
+        ];
+        if ($insertFields !== []) {
+            $update['$setOnInsert'] = $insertFields;
+        }
+
+        $this->collection()->updateOne($position, $update, ['upsert' => true, ...$this->sessionOptions()]);
+
+        $saved = $this->findAt($sheetIdentifier, $reference);
+        if ($saved === null) {
+            throw new CellNotSavedException($reference->key());
+        }
+
+        return $saved;
+    }
+
+    private function decimalOrNull(?string $number): ?Decimal128
+    {
+        return $number === null ? null : new Decimal128($number);
     }
 }

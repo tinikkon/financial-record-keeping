@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Cells\Contracts;
 
+use Finance\Domains\Cells\Data\CellContent;
+use Finance\Domains\Cells\Data\CellFormat;
 use Finance\Domains\Cells\Models\CellModel;
 use Finance\FormulaEngine\Values\CellRange;
 use Finance\FormulaEngine\Values\CellReference;
+use Finance\FormulaEngine\Values\CellValue;
 use Illuminate\Support\Collection;
 
 interface CellRepositoryContract
@@ -36,9 +39,30 @@ interface CellRepositoryContract
     public function dependentsOf(string $sheetIdentifier, CellReference $reference): Collection;
 
     /**
-     * @param array<string, mixed> $attributes
+     * Записывает то, что ввёл пользователь, создавая ячейку при первом заполнении.
+     * Оформление не трогается.
      */
-    public function save(string $sheetIdentifier, CellReference $reference, array $attributes): CellModel;
+    public function saveContent(
+        string $sheetIdentifier,
+        CellReference $reference,
+        CellContent $content,
+        string $updatedBy,
+    ): CellModel;
+
+    /**
+     * Записывает итог пересчёта формулы, не трогая саму формулу.
+     */
+    public function saveComputedValue(
+        string $sheetIdentifier,
+        CellReference $reference,
+        CellValue $value,
+        string $updatedBy,
+    ): CellModel;
+
+    /**
+     * Заменяет оформление ячейки целиком, не трогая содержимое.
+     */
+    public function saveFormat(string $sheetIdentifier, CellReference $reference, CellFormat $format): CellModel;
 
     public function deleteForSheet(string $sheetIdentifier): void;
 }

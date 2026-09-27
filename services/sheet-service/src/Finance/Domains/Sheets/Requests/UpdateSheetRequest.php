@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Sheets\Requests;
 
+use Finance\Domains\Sheets\Data\ColumnWidths;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateSheetRequest extends FormRequest
@@ -25,18 +26,12 @@ final class UpdateSheetRequest extends FormRequest
         return $this->has('name') ? (string) $this->string('name') : null;
     }
 
-    /**
-     * @return array<string, int>|null
-     */
-    public function columnWidths(): ?array
+    public function columnWidths(): ?ColumnWidths
     {
         if (! $this->has('columnWidths')) {
             return null;
         }
 
-        /** @var array<string, int> $widths */
-        $widths = array_map(intval(...), $this->array('columnWidths'));
-
-        return $widths;
+        return ColumnWidths::fromArray($this->array('columnWidths'));
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Cells\Requests;
 
-use Finance\Domains\Cells\Actions\CellEdit;
+use Finance\Domains\Cells\Data\CellEdit;
 use Finance\FormulaEngine\Exceptions\InvalidReferenceException;
 use Finance\FormulaEngine\Values\CellReference;
 use Illuminate\Foundation\Http\FormRequest;

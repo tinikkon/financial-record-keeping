@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Sheets\Contracts;
 
+use Finance\Domains\Sheets\Data\ColumnWidths;
 use Finance\Domains\Sheets\Models\SheetModel;
 use Illuminate\Support\Collection;
 
@@ -18,16 +19,13 @@ interface SheetRepositoryContract
 
     public function findByName(string $workbookIdentifier, string $name): ?SheetModel;
 
-    /**
-     * @param array<string, int> $columnWidths
-     */
     public function create(
         string $workbookIdentifier,
         string $name,
         int $position,
         int $rowCount,
         int $columnCount,
-        array $columnWidths = [],
+        ColumnWidths $columnWidths = new ColumnWidths(),
     ): SheetModel;
 
     public function rename(string $identifier, string $name): void;
@@ -39,10 +37,7 @@ interface SheetRepositoryContract
      */
     public function updatePositions(array $positionsByIdentifier): void;
 
-    /**
-     * @param array<string, int> $columnWidths
-     */
-    public function updateColumnWidths(string $identifier, array $columnWidths): void;
+    public function updateColumnWidths(string $identifier, ColumnWidths $columnWidths): void;
 
     public function nextPosition(string $workbookIdentifier): int;
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Summaries\Repositories;
 
+use Finance\Domains\Summaries\Data\ColumnTotal;
+use Finance\Domains\Summaries\Data\SheetActivity;
 use Illuminate\Support\Facades\DB;
 use MongoDB\Laravel\Connection;
 
@@ -19,7 +21,7 @@ final readonly class CellStateSummaryRepository
     /**
      * Итоги по каждой колонке каждого листа.
      *
-     * @return list<array{sheetId: string, sheetName: string, column: int, total: string, filledCells: int}>
+     * @return list<ColumnTotal>
      */
     public function columnTotals(string $workbookIdentifier): array
     {
@@ -54,13 +56,13 @@ final readonly class CellStateSummaryRepository
 
         foreach ($rows as $row) {
             /** @var array{_id: array{sheetId: string, sheetName: string, column: int}, total: mixed, filledCells: int} $row */
-            $totals[] = [
-                'sheetId' => (string) $row['_id']['sheetId'],
-                'sheetName' => (string) $row['_id']['sheetName'],
-                'column' => (int) $row['_id']['column'],
-                'total' => (string) $row['total'],
-                'filledCells' => (int) $row['filledCells'],
-            ];
+            $totals[] = new ColumnTotal(
+                sheetIdentifier: (string) $row['_id']['sheetId'],
+                sheetName: (string) $row['_id']['sheetName'],
+                column: (int) $row['_id']['column'],
+                total: (string) $row['total'],
+                filledCells: (int) $row['filledCells'],
+            );
         }
 
         return $totals;
@@ -69,7 +71,7 @@ final readonly class CellStateSummaryRepository
     /**
      * Сколько правок пришлось на каждый лист и когда лист трогали в последний раз.
      *
-     * @return array<string, array{changes: int, lastChangeAt: string}>
+     * @return array<string, SheetActivity> по идентификатору листа
      */
     public function activityBySheet(string $workbookIdentifier): array
     {
@@ -94,10 +96,10 @@ final readonly class CellStateSummaryRepository
 
         foreach ($rows as $row) {
             /** @var array{_id: string, changes: int, lastChangeAt: mixed} $row */
-            $activity[(string) $row['_id']] = [
-                'changes' => (int) $row['changes'],
-                'lastChangeAt' => (string) $row['lastChangeAt'],
-            ];
+            $activity[(string) $row['_id']] = new SheetActivity(
+                changes: (int) $row['changes'],
+                lastChangeAt: (string) $row['lastChangeAt'],
+            );
         }
 
         return $activity;

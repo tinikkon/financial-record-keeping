@@ -52,6 +52,24 @@ test('снятие свойства не сбрасывает остальные
         ->and($response['cells'][0]['format']['bold'])->toBeTrue();
 });
 
+test('снятое целиком оформление уходит клиенту пустым объектом', function (): void {
+    $context = sheetContext();
+    $range = ['startRow' => 3, 'startColumn' => 2, 'endRow' => 3, 'endColumn' => 2];
+
+    test()->withToken($context['token'])->patchJson("/api/sheets/{$context['sheet']}/cells/format", [
+        'range' => $range,
+        'format' => ['bold' => true],
+    ]);
+
+    $response = test()->withToken($context['token'])
+        ->patchJson("/api/sheets/{$context['sheet']}/cells/format", [
+            'range' => $range,
+            'format' => ['bold' => null],
+        ]);
+
+    expect($response->getContent())->toContain('"format":{}');
+});
+
 test('неверный цвет отвергается', function (): void {
     $context = sheetContext();
 

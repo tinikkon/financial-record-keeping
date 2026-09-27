@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Realtime\Actions;
 
-use Finance\Domains\Cells\Models\CellModel;
-use Finance\Domains\Cells\Resources\CellResource;
+use Finance\Domains\Cells\Data\AppliedCellEdits;
 use Finance\Domains\Realtime\Events\CellsChangedEvent;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -20,22 +19,14 @@ use Throwable;
  */
 final readonly class BroadcastCellsChangedAction
 {
-    /**
-     * @param list<CellModel> $cells
-     */
-    public function execute(string $sheetIdentifier, int $sheetVersion, array $cells, string $actorIdentifier): void
+    public function execute(string $sheetIdentifier, AppliedCellEdits $changes, string $actorIdentifier): void
     {
         try {
-            CellsChangedEvent::dispatch(
-                $sheetIdentifier,
-                $sheetVersion,
-                array_map(CellResource::toArray(...), $cells),
-                $actorIdentifier,
-            );
+            CellsChangedEvent::dispatch($sheetIdentifier, $changes, $actorIdentifier);
         } catch (Throwable $exception) {
             Log::warning('Не удалось разослать изменения листа', [
                 'sheetId' => $sheetIdentifier,
-                'sheetVersion' => $sheetVersion,
+                'sheetVersion' => $changes->sheetVersion,
                 'exception' => $exception->getMessage(),
             ]);
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finance\Domains\Sheets\Actions;
 
 use Finance\Domains\Sheets\Contracts\SheetRepositoryContract;
+use Finance\Domains\Sheets\Data\ColumnWidths;
 use Finance\Domains\Sheets\Models\SheetModel;
 
 final readonly class UpdateColumnWidthsAction
@@ -17,16 +18,9 @@ final readonly class UpdateColumnWidthsAction
     {
     }
 
-    /**
-     * @param array<string, int> $columnWidths ширины по буквам колонок
-     */
-    public function execute(SheetModel $sheet, array $columnWidths): void
+    public function execute(SheetModel $sheet, ColumnWidths $changes): void
     {
-        $merged = $sheet->column_widths ?? [];
-
-        foreach ($columnWidths as $column => $width) {
-            $merged[$column] = max(self::MINIMUM_WIDTH, min(self::MAXIMUM_WIDTH, $width));
-        }
+        $merged = $sheet->columnWidths()->merge($changes->clamped(self::MINIMUM_WIDTH, self::MAXIMUM_WIDTH));
 
         $this->sheets->updateColumnWidths($sheet->identifier(), $merged);
     }

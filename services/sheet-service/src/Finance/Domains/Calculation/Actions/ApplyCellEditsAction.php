@@ -8,9 +8,10 @@ use Brick\Math\BigDecimal;
 use Brick\Math\Exception\MathException;
 use Finance\Domains\Calculation\Services\SheetCellValueResolver;
 use Finance\Domains\Calculation\Services\SheetDependencyGraph;
-use Finance\Domains\Cells\Actions\AppliedCellEdits;
-use Finance\Domains\Cells\Actions\CellEdit;
 use Finance\Domains\Cells\Contracts\CellRepositoryContract;
+use Finance\Domains\Cells\Data\AppliedCellEdits;
+use Finance\Domains\Cells\Data\CellContent;
+use Finance\Domains\Cells\Data\CellEdit;
 use Finance\Domains\Cells\Exceptions\CellNotSavedException;
 use Finance\Domains\Cells\Enums\CellKind;
 use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
@@ -22,7 +23,6 @@ use Finance\FormulaEngine\Ast\Node;
 use Finance\FormulaEngine\Exceptions\SyntaxErrorException;
 use Finance\FormulaEngine\FormulaEngine;
 use Finance\FormulaEngine\Recalculation\RecalculationPlanner;
-use Finance\FormulaEngine\Values\CellRange;
 use Finance\FormulaEngine\Values\CellReference;
 use Finance\FormulaEngine\Values\CellValue;
 use Finance\FormulaEngine\Values\FormulaError;
@@ -120,7 +120,12 @@ final readonly class ApplyCellEditsAction
         }
 
         foreach ($plan->circularReferences as $reference) {
-            $touched[$reference->key()] = $this->writeError($sheetIdentifier, $reference, FormulaError::CircularReference, $userIdentifier);
+            $touched[$reference->key()] = $this->cells->saveComputedValue(
+                $sheetIdentifier,
+                $reference,
+                CellValue::error(FormulaError::CircularReference),
+                $userIdentifier,
+            );
         }
 
         foreach ($edits as $edit) {
@@ -149,48 +154,36 @@ final readonly class ApplyCellEditsAction
         string $userIdentifier,
         SheetCellValueResolver $resolver,
     ): void {
-        $kind = $this->interpreter->kindOf($edit->input);
+        $input = (string) $edit->input;
 
-        $attributes = [
-            'input' => $kind === CellKind::Empty ? null : $edit->input,
-            'kind' => $kind->value,
-            'value_number' => null,
-            'value_text' => null,
-            'error' => null,
-            'depends_on_cells' => [],
-            'depends_on_ranges' => [],
-            'updated_by' => $userIdentifier,
-        ];
+        $content = match ($this->interpreter->kindOf($edit->input)) {
+            CellKind::Empty => CellContent::empty(),
+            CellKind::Number => CellContent::number($input, $this->interpreter->toNumericString($input)),
+            CellKind::Text => CellContent::text($input),
+            CellKind::Formula => CellContent::formula(
+                $input,
+                $this->engine->dependenciesOfNode($parsedFormulas[$edit->reference->key()]),
+            ),
+        };
 
-        if ($kind === CellKind::Number) {
-            $attributes['value_number'] = $this->interpreter->toNumericString((string) $edit->input);
-            $resolver->remember($edit->reference, $this->numberValue($attributes['value_number']));
+        // Значение числа и текста известно сразу, и следующие формулы пачки
+        // должны видеть именно его. Итог формулы появится только при пересчёте.
+        $immediateValue = $this->immediateValueOf($content);
+        if ($immediateValue !== null) {
+            $resolver->remember($edit->reference, $immediateValue);
         }
 
-        if ($kind === CellKind::Text) {
-            $attributes['value_text'] = $edit->input;
-            $resolver->remember($edit->reference, CellValue::text((string) $edit->input));
-        }
+        $this->cells->saveContent($sheetIdentifier, $edit->reference, $content, $userIdentifier);
+    }
 
-        if ($kind === CellKind::Empty) {
-            $resolver->remember($edit->reference, CellValue::blank());
-        }
-
-        if ($kind === CellKind::Formula) {
-            $dependencies = $this->engine->dependenciesOfNode($parsedFormulas[$edit->reference->key()]);
-            $attributes['depends_on_cells'] = $dependencies->referenceKeys();
-            $attributes['depends_on_ranges'] = array_map(
-                static fn (CellRange $range): array => [
-                    'min_row' => $range->minimumRow,
-                    'max_row' => $range->maximumRow,
-                    'min_column' => $range->minimumColumn,
-                    'max_column' => $range->maximumColumn,
-                ],
-                $dependencies->ranges,
-            );
-        }
-
-        $this->cells->save($sheetIdentifier, $edit->reference, $attributes);
+    private function immediateValueOf(CellContent $content): ?CellValue
+    {
+        return match ($content->kind) {
+            CellKind::Empty => CellValue::blank(),
+            CellKind::Number => $this->numberValue((string) $content->numberValue),
+            CellKind::Text => CellValue::text((string) $content->textValue),
+            CellKind::Formula => null,
+        };
     }
 
     private function recalculate(
@@ -200,7 +193,6 @@ final readonly class ApplyCellEditsAction
         string $userIdentifier,
     ): ?CellModel {
         $cell = $this->cells->findAt($sheetIdentifier, $reference);
-
         if ($cell === null || $cell->cellKind() !== CellKind::Formula) {
             return null;
         }
@@ -213,26 +205,7 @@ final readonly class ApplyCellEditsAction
 
         $resolver->remember($reference, $value);
 
-        return $this->cells->save($sheetIdentifier, $reference, [
-            'value_number' => $value->isNumber() ? (string) $value->numberValue() : null,
-            'value_text' => $value->isText() ? $value->textValue() : null,
-            'error' => $value->errorValue()?->value,
-            'updated_by' => $userIdentifier,
-        ]);
-    }
-
-    private function writeError(
-        string $sheetIdentifier,
-        CellReference $reference,
-        FormulaError $error,
-        string $userIdentifier,
-    ): CellModel {
-        return $this->cells->save($sheetIdentifier, $reference, [
-            'value_number' => null,
-            'value_text' => null,
-            'error' => $error->value,
-            'updated_by' => $userIdentifier,
-        ]);
+        return $this->cells->saveComputedValue($sheetIdentifier, $reference, $value, $userIdentifier);
     }
 
     private function numberValue(string $number): CellValue

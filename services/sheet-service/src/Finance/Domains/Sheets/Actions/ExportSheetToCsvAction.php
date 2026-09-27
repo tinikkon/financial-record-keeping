@@ -76,9 +76,9 @@ final readonly class ExportSheetToCsvAction
         }
 
         $number = (string) $cell->value_number->strippedOfTrailingZeros();
-        $decimals = $cell->format['decimals'] ?? null;
+        $decimals = $cell->cellFormat()->decimals;
 
-        if (is_int($decimals)) {
+        if ($decimals !== null) {
             $number = number_format((float) $number, $decimals, '.', '');
         }
 

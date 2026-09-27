@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finance\Domains\Messaging\Actions;
 
 use Finance\Domains\Changelog\Actions\RecordSheetChangesAction;
+use Finance\Domains\Changelog\Data\SheetChangedMessage;
 use Finance\Domains\Messaging\Repositories\ProcessedMessageRepository;
 
 /**
@@ -22,13 +23,11 @@ final readonly class HandleSheetEventAction
     }
 
     /**
-     * @param array<string, mixed> $message
-     *
      * @return int сколько записей добавлено в журнал; ноль при повторной доставке
      */
-    public function execute(array $message): int
+    public function execute(SheetChangedMessage $message): int
     {
-        if (! $this->processedMessages->markProcessed((string) $message['messageId'])) {
+        if (! $this->processedMessages->markProcessed($message->messageIdentifier)) {
             return 0;
         }
 

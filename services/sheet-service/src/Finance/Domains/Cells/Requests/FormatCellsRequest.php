@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Cells\Requests;
 
+use Finance\Domains\Cells\Data\CellFormat;
+use Finance\Domains\Cells\Data\CellFormatChange;
+use Finance\Domains\Cells\Enums\CellFormatProperty;
 use Finance\FormulaEngine\Exceptions\InvalidReferenceException;
 use Finance\FormulaEngine\Values\CellRange;
 use Finance\FormulaEngine\Values\CellReference;
@@ -45,10 +48,24 @@ final class FormatCellsRequest extends FormRequest
     }
 
     /**
-     * @return array<string, mixed>
+     * Присланное значение null означает «снять свойство», отсутствие свойства —
+     * «оставить как было».
      */
-    public function cellFormat(): array
+    public function cellFormatChange(): CellFormatChange
     {
-        return $this->array('format');
+        $format = $this->array('format');
+
+        $cleared = [];
+        foreach ($format as $property => $value) {
+            $known = CellFormatProperty::tryFrom((string) $property);
+            if ($value === null && $known !== null) {
+                $cleared[] = $known;
+            }
+        }
+
+        return new CellFormatChange(
+            applied: CellFormat::fromArray(array_filter($format, static fn (mixed $value): bool => $value !== null)),
+            cleared: $cleared,
+        );
     }
 }

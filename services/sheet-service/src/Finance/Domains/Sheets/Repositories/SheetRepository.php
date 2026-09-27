@@ -8,6 +8,7 @@ use Finance\Domains\Core\Contracts\IndexDefinition;
 use Finance\Domains\Core\Contracts\ProvidesIndexes;
 use Finance\Domains\Core\Repositories\AbstractMongoRepository;
 use Finance\Domains\Sheets\Contracts\SheetRepositoryContract;
+use Finance\Domains\Sheets\Data\ColumnWidths;
 use Finance\Domains\Sheets\Models\SheetModel;
 use Illuminate\Support\Collection;
 use MongoDB\BSON\ObjectId;
@@ -49,7 +50,7 @@ final class SheetRepository extends AbstractMongoRepository implements ProvidesI
         int $position,
         int $rowCount,
         int $columnCount,
-        array $columnWidths = [],
+        ColumnWidths $columnWidths = new ColumnWidths(),
     ): SheetModel {
         $sheet = new SheetModel();
         $sheet->fill([
@@ -59,7 +60,7 @@ final class SheetRepository extends AbstractMongoRepository implements ProvidesI
             'version' => 0,
             'row_count' => $rowCount,
             'column_count' => $columnCount,
-            'column_widths' => $columnWidths,
+            'column_widths' => $columnWidths->toArray(),
         ]);
         $sheet->save();
 
@@ -83,9 +84,9 @@ final class SheetRepository extends AbstractMongoRepository implements ProvidesI
         }
     }
 
-    public function updateColumnWidths(string $identifier, array $columnWidths): void
+    public function updateColumnWidths(string $identifier, ColumnWidths $columnWidths): void
     {
-        $this->query()->where('_id', $identifier)->update(['column_widths' => $columnWidths]);
+        $this->query()->where('_id', $identifier)->update(['column_widths' => $columnWidths->toArray()]);
     }
 
     public function nextPosition(string $workbookIdentifier): int

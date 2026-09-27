@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Changelog\Repositories;
 
+use Finance\Domains\Changelog\Data\NewCellChange;
 use Finance\Domains\Changelog\Models\CellChangeModel;
 use Finance\Domains\Core\Contracts\IndexDefinition;
 use Finance\Domains\Core\Contracts\ProvidesIndexes;
@@ -12,16 +13,27 @@ use Illuminate\Support\Collection;
 
 final class CellChangeRepository extends AbstractMongoRepository implements ProvidesIndexes
 {
-    /**
-     * @param array<string, mixed> $attributes
-     */
-    public function record(array $attributes): CellChangeModel
+    public function record(NewCellChange $change): CellChangeModel
     {
-        $change = new CellChangeModel();
-        $change->fill($attributes);
-        $change->save();
+        $model = new CellChangeModel();
+        $model->fill([
+            'workbook_id' => $change->workbookIdentifier,
+            'sheet_id' => $change->sheetIdentifier,
+            'sheet_name' => $change->sheetName,
+            'address' => $change->address,
+            'row' => $change->row,
+            'column' => $change->column,
+            'value_before' => $change->valueBefore,
+            'value_after' => $change->valueAfter,
+            'input_before' => $change->inputBefore,
+            'input_after' => $change->inputAfter,
+            'sheet_version' => $change->sheetVersion,
+            'actor_id' => $change->actorIdentifier,
+            'occurred_at' => $change->occurredAt,
+        ]);
+        $model->save();
 
-        return $change;
+        return $model;
     }
 
     /**

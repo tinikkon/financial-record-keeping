@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Finance\Domains\Messaging\Services;
 
 use Finance\Domains\Messaging\Contracts\EventPublisherContract;
+use Finance\Domains\Messaging\Contracts\OutgoingMessage;
+use Finance\Domains\Messaging\Data\RabbitMqSettings;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Exchange\AMQPExchangeType;
@@ -28,30 +30,29 @@ final class RabbitMqEventPublisher implements EventPublisherContract
 
     private ?AMQPChannel $channel = null;
 
-    /**
-     * @param array<string, mixed> $settings
-     */
-    public function __construct(private readonly array $settings)
+    public function __construct(private readonly RabbitMqSettings $settings)
     {
     }
 
-    public function publish(string $routingKey, string $messageIdentifier, array $payload): void
+    public function publish(OutgoingMessage $message): void
     {
+        $routingKey = $message->routingKey();
+
         try {
             $channel = $this->channel();
 
-            $message = new AMQPMessage(
-                (string) json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            $amqpMessage = new AMQPMessage(
+                (string) json_encode($message->body(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 [
                     'content_type' => 'application/json',
-                    'message_id' => $messageIdentifier,
+                    'message_id' => $message->messageIdentifier(),
                     // Сообщение переживает перезапуск брокера. Без этого очередь
                     // теряет содержимое ровно тогда, когда она нужнее всего.
                     'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT,
                 ],
             );
 
-            $channel->basic_publish($message, (string) $this->settings['exchange'], $routingKey);
+            $channel->basic_publish($amqpMessage, $this->settings->exchange, $routingKey);
         } catch (Throwable $exception) {
             $this->forgetConnection();
 
@@ -71,17 +72,17 @@ final class RabbitMqEventPublisher implements EventPublisherContract
         }
 
         $this->connection = new AMQPStreamConnection(
-            host: (string) $this->settings['host'],
-            port: (int) $this->settings['port'],
-            user: (string) $this->settings['user'],
-            password: (string) $this->settings['password'],
-            vhost: (string) $this->settings['vhost'],
-            connection_timeout: (float) $this->settings['connection_timeout'],
+            host: $this->settings->host,
+            port: $this->settings->port,
+            user: $this->settings->user,
+            password: $this->settings->password,
+            vhost: $this->settings->virtualHost,
+            connection_timeout: $this->settings->connectionTimeoutSeconds,
         );
 
         $channel = $this->connection->channel();
         $channel->exchange_declare(
-            (string) $this->settings['exchange'],
+            $this->settings->exchange,
             AMQPExchangeType::TOPIC,
             passive: false,
             durable: true,

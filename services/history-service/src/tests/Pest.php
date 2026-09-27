@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
+use Finance\Domains\Changelog\Data\SheetChangedMessage;
 use Finance\Domains\Messaging\Actions\HandleSheetEventAction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -87,5 +88,5 @@ function cellPayload(string $address, int $row, int $column, ?string $value, ?st
  */
 function handleEvent(array $message): int
 {
-    return app(HandleSheetEventAction::class)->execute($message);
+    return app(HandleSheetEventAction::class)->execute(SheetChangedMessage::fromArray($message));
 }

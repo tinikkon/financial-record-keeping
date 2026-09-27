@@ -27,8 +27,8 @@ use Finance\Domains\Sheets\Requests\ShiftColumnsRequest;
 use Finance\Domains\Sheets\Requests\ShiftRowsRequest;
 use Finance\Domains\Sheets\Requests\UpdateSheetRequest;
 use Finance\Domains\Sheets\Resources\SheetResource;
-use Finance\Domains\Cells\Actions\AppliedCellEdits;
-use Finance\Domains\Cells\Resources\CellResource;
+use Finance\Domains\Cells\Data\AppliedCellEdits;
+use Finance\Domains\Cells\Resources\AppliedCellEditsResource;
 use Finance\Domains\Messaging\Actions\PublishCellsChangedAction;
 use Finance\Domains\Realtime\Actions\BroadcastCellsChangedAction;
 use Finance\Domains\Workbooks\Actions\FindAvailableWorkbookAction;
@@ -280,13 +280,12 @@ final readonly class SheetController
         BroadcastCellsChangedAction $broadcastChanges,
         PublishCellsChangedAction $publishChanges,
     ): JsonResponse {
-        $broadcastChanges->execute($sheet->identifier(), $applied->sheetVersion, $applied->cells, $userIdentifier);
-        $publishChanges->execute($sheet, $applied->sheetVersion, $applied->cells, $userIdentifier);
+        $broadcastChanges->execute($sheet->identifier(), $applied, $userIdentifier);
+        $publishChanges->execute($sheet, $applied, $userIdentifier);
 
         return new JsonResponse([
-            'sheetVersion' => $applied->sheetVersion,
-            'cells' => array_map(CellResource::toArray(...), $applied->cells),
-            'columnWidths' => $sheet->column_widths ?? [],
+            ...AppliedCellEditsResource::toArray($applied),
+            'columnWidths' => $sheet->columnWidths()->toArray(),
         ]);
     }
 

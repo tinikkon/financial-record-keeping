@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Finance\Domains\Messaging\Actions;
 
 use Carbon\CarbonImmutable;
-use Finance\Domains\Cells\Models\CellModel;
-use Finance\Domains\Cells\Resources\CellResource;
+use Finance\Domains\Cells\Data\AppliedCellEdits;
 use Finance\Domains\Messaging\Contracts\EventPublisherContract;
 use Finance\Domains\Messaging\Contracts\PendingMessageRepositoryContract;
+use Finance\Domains\Messaging\Data\CellsChangedMessage;
 use Finance\Domains\Messaging\Services\MessagePublishingFailedException;
 use Finance\Domains\Sheets\Models\SheetModel;
 use Illuminate\Support\Facades\Log;
@@ -28,35 +28,27 @@ final readonly class PublishCellsChangedAction
     ) {
     }
 
-    /**
-     * @param list<CellModel> $cells
-     */
-    public function execute(SheetModel $sheet, int $sheetVersion, array $cells, string $actorIdentifier): void
+    public function execute(SheetModel $sheet, AppliedCellEdits $changes, string $actorIdentifier): void
     {
-        $routingKey = (string) config('messaging.routing_keys.cells_changed');
-        $messageIdentifier = (string) Str::uuid();
-
-        $payload = [
-            'messageId' => $messageIdentifier,
-            'occurredAt' => CarbonImmutable::now()->toIso8601String(),
-            'workbookId' => $sheet->workbook_id,
-            'sheetId' => $sheet->identifier(),
-            'sheetName' => $sheet->name,
-            'sheetVersion' => $sheetVersion,
-            'actorId' => $actorIdentifier,
-            'cells' => array_map(CellResource::toArray(...), $cells),
-        ];
+        $message = new CellsChangedMessage(
+            routingKey: (string) config('messaging.routing_keys.cells_changed'),
+            messageIdentifier: (string) Str::uuid(),
+            occurredAt: CarbonImmutable::now(),
+            sheet: $sheet,
+            changes: $changes,
+            actorIdentifier: $actorIdentifier,
+        );
 
         try {
-            $this->publisher->publish($routingKey, $messageIdentifier, $payload);
+            $this->publisher->publish($message);
         } catch (MessagePublishingFailedException $exception) {
             Log::warning('Событие не ушло в очередь, отложено до восстановления', [
-                'routingKey' => $routingKey,
-                'messageId' => $messageIdentifier,
+                'routingKey' => $message->routingKey(),
+                'messageId' => $message->messageIdentifier(),
                 'exception' => $exception->getMessage(),
             ]);
 
-            $this->pendingMessages->store($routingKey, $messageIdentifier, $payload);
+            $this->pendingMessages->store($message);
         }
     }
 }

@@ -7,7 +7,7 @@ namespace Finance\Domains\History\Controllers;
 use Finance\Domains\Auth\Exceptions\InvalidAccessTokenException;
 use Finance\Domains\Auth\Support\CurrentUser;
 use Finance\Domains\Cells\Exceptions\InvalidFormulaException;
-use Finance\Domains\Cells\Resources\CellResource;
+use Finance\Domains\Cells\Resources\AppliedCellEditsResource;
 use Finance\Domains\History\Actions\RestoreSheetStateAction;
 use Finance\Domains\History\Exceptions\HistoryUnavailableException;
 use Finance\Domains\History\Requests\RestoreSheetRequest;
@@ -45,12 +45,9 @@ final readonly class SheetRestoreController
             (string) $request->bearerToken(),
         );
 
-        $broadcastChanges->execute($sheetIdentifier, $applied->sheetVersion, $applied->cells, $userIdentifier);
-        $publishChanges->execute($sheet, $applied->sheetVersion, $applied->cells, $userIdentifier);
+        $broadcastChanges->execute($sheetIdentifier, $applied, $userIdentifier);
+        $publishChanges->execute($sheet, $applied, $userIdentifier);
 
-        return new JsonResponse([
-            'sheetVersion' => $applied->sheetVersion,
-            'cells' => array_map(CellResource::toArray(...), $applied->cells),
-        ]);
+        return new JsonResponse(AppliedCellEditsResource::toArray($applied));
     }
 }

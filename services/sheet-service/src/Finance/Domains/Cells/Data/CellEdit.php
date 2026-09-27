@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Finance\Domains\Cells\Actions;
+namespace Finance\Domains\Cells\Data;
 
 use Finance\FormulaEngine\Values\CellReference;
 

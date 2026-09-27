@@ -7,24 +7,25 @@ namespace Finance\Domains\Messaging\Repositories;
 use Finance\Domains\Core\Contracts\IndexDefinition;
 use Finance\Domains\Core\Contracts\ProvidesIndexes;
 use Finance\Domains\Core\Repositories\AbstractMongoRepository;
+use Finance\Domains\Messaging\Contracts\OutgoingMessage;
 use Finance\Domains\Messaging\Contracts\PendingMessageRepositoryContract;
 use Finance\Domains\Messaging\Models\PendingMessageModel;
 use Illuminate\Support\Collection;
 
 final class PendingMessageRepository extends AbstractMongoRepository implements PendingMessageRepositoryContract, ProvidesIndexes
 {
-    public function store(string $routingKey, string $messageIdentifier, array $payload): PendingMessageModel
+    public function store(OutgoingMessage $message): PendingMessageModel
     {
-        $message = new PendingMessageModel();
-        $message->fill([
-            'routing_key' => $routingKey,
-            'message_id' => $messageIdentifier,
-            'payload' => $payload,
+        $pending = new PendingMessageModel();
+        $pending->fill([
+            'routing_key' => $message->routingKey(),
+            'message_id' => $message->messageIdentifier(),
+            'payload' => $message->body(),
             'attempts' => 0,
         ]);
-        $message->save();
+        $pending->save();
 
-        return $message;
+        return $pending;
     }
 
     public function oldestFirst(int $limit): Collection

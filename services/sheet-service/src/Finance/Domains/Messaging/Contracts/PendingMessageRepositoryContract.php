@@ -9,10 +9,7 @@ use Illuminate\Support\Collection;
 
 interface PendingMessageRepositoryContract
 {
-    /**
-     * @param array<string, mixed> $payload
-     */
-    public function store(string $routingKey, string $messageIdentifier, array $payload): PendingMessageModel;
+    public function store(OutgoingMessage $message): PendingMessageModel;
 
     /**
      * @return Collection<int, PendingMessageModel>

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Finance\Domains\Summaries\Actions;
 
-use Finance\Domains\Summaries\Repositories\CellStateSummaryRepository;
 use Finance\Domains\Core\Support\ColumnLetters;
+use Finance\Domains\Summaries\Data\ColumnSummary;
+use Finance\Domains\Summaries\Data\SheetSummary;
+use Finance\Domains\Summaries\Repositories\CellStateSummaryRepository;
 
 /**
  * Собирает сводку по книге: по каждому листу — итоги колонок и число правок.
@@ -21,29 +23,36 @@ final readonly class BuildWorkbookSummaryAction
     }
 
     /**
-     * @return list<array{sheetId: string, sheetName: string, changes: int, lastChangeAt: string|null, columns: list<array{column: string, total: string, filledCells: int}>}>
+     * @return list<SheetSummary>
      */
     public function execute(string $workbookIdentifier): array
     {
         $activity = $this->summaries->activityBySheet($workbookIdentifier);
-        $bySheet = [];
 
+        // Итоги приходят плоским списком, уже упорядоченным по листу и колонке;
+        // здесь они только раскладываются по листам.
+        $namesBySheet = [];
+        $columnsBySheet = [];
         foreach ($this->summaries->columnTotals($workbookIdentifier) as $total) {
-            $bySheet[$total['sheetId']] ??= [
-                'sheetId' => $total['sheetId'],
-                'sheetName' => $total['sheetName'],
-                'changes' => $activity[$total['sheetId']]['changes'] ?? 0,
-                'lastChangeAt' => $activity[$total['sheetId']]['lastChangeAt'] ?? null,
-                'columns' => [],
-            ];
-
-            $bySheet[$total['sheetId']]['columns'][] = [
-                'column' => ColumnLetters::fromNumber($total['column']),
-                'total' => $total['total'],
-                'filledCells' => $total['filledCells'],
-            ];
+            $namesBySheet[$total->sheetIdentifier] ??= $total->sheetName;
+            $columnsBySheet[$total->sheetIdentifier][] = new ColumnSummary(
+                column: ColumnLetters::fromNumber($total->column),
+                total: $total->total,
+                filledCells: $total->filledCells,
+            );
         }
 
-        return array_values($bySheet);
+        $summaries = [];
+        foreach ($columnsBySheet as $sheetIdentifier => $columns) {
+            $summaries[] = new SheetSummary(
+                sheetIdentifier: (string) $sheetIdentifier,
+                sheetName: $namesBySheet[$sheetIdentifier],
+                changes: $activity[$sheetIdentifier]->changes ?? 0,
+                lastChangeAt: $activity[$sheetIdentifier]->lastChangeAt ?? null,
+                columns: $columns,
+            );
+        }
+
+        return $summaries;
     }
 }

@@ -13,6 +13,8 @@ final readonly class CellResource
      */
     public static function toArray(CellModel $cell): array
     {
+        $format = $cell->cellFormat();
+
         return [
             'address' => $cell->address(),
             'row' => $cell->row,
@@ -21,7 +23,8 @@ final readonly class CellResource
             'kind' => $cell->kind,
             'value' => $cell->value_number !== null ? (string) $cell->value_number->strippedOfTrailingZeros() : $cell->value_text,
             'error' => $cell->error,
-            'format' => $cell->format ?? new \stdClass(),
+            // Пустое оформление уходит объектом: пустой массив PHP стал бы в JSON списком.
+            'format' => $format->isEmpty() ? new \stdClass() : $format->toArray(),
         ];
     }
 }
